@@ -5,7 +5,7 @@ description = "Convert documents into markdown format using Mistral.ai OCR capab
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "mistralai",
+    "mistralai>=0.5.0",
     "pydantic",
     "rich",
     "structlog",

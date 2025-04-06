@@ -1,8 +1,11 @@
 """Entry point for the intake-document application."""
 
+import logging
 from typing import List, Optional
 
-from src.intake_document.cli import app
+# Local application imports
+from intake_document.cli import app
+from intake_document.utils.logger import setup_logger
 
 
 def main(args: Optional[List[str]] = None) -> None:
@@ -11,8 +14,18 @@ def main(args: Optional[List[str]] = None) -> None:
     Args:
         args: Command line arguments (defaults to sys.argv if None)
     """
-    # Use typer app
-    app(args)
+    # Set up default logging
+    setup_logger("INFO")
+    logger = logging.getLogger(__name__)
+    logger.debug("Starting application from __main__.py")
+
+    try:
+        # Use typer app
+        app(args)
+        logger.debug("Application completed successfully")
+    except Exception:
+        logger.exception("Application failed with an error")
+        raise
 
 
 if __name__ == "__main__":

@@ -3,12 +3,13 @@
 import os
 from unittest.mock import patch
 
-from src.intake_document.config import Config
-from src.intake_document.models.settings import Settings
+from intake_document.config import Config
+from intake_document.models.settings import Settings
 
 
+@patch.dict(os.environ, {}, clear=True)
 def test_config_defaults():
-    """Test that the config manager returns default settings when no config exists."""
+    """Test config manager returns default settings when no config exists."""
     config = Config()
     settings = config.settings
 

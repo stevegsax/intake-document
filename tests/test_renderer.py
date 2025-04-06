@@ -1,14 +1,13 @@
 """Tests for the markdown renderer."""
 
-
-from src.intake_document.models.document import (
+from intake_document.models.document import (
     Document,
     DocumentType,
     ImageElement,
     TableElement,
     TextElement,
 )
-from src.intake_document.renderer import MarkdownRenderer
+from intake_document.renderer import MarkdownRenderer
 
 
 def test_render_heading():
