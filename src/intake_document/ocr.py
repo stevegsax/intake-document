@@ -197,7 +197,7 @@ class MistralOCR:
                 response = self.client.chat(
                     model=self.model,
                     messages=messages
-                )
+                ).choices[0].message
                 
                 # Extract text content from response
                 text_content = response.choices[0].message.content
