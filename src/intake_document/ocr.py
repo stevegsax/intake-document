@@ -193,10 +193,14 @@ class MistralOCR:
                     )
                 ]
                 
-                response = self.client.chat(
+                # The chat method returns a Chat object, not a callable function
+                chat = self.client.chat(
                     model=self.model,
                     messages=messages
                 )
+                
+                # Execute the chat to get the response
+                response = chat.create()
                 
                 # Extract text content from response
                 text_content = response.choices[0].message.content
