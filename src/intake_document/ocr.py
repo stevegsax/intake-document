@@ -142,32 +142,22 @@ class MistralOCR:
                 file_content = f.read()
                 
             # Upload to Mistral
-            # In a production environment, we would use the Mistral file upload API
             if self.client is None:
                 error_msg = "Mistral client is not initialized"
                 self.logger.error(f"{error_msg}. Please provide an API key.")
                 raise OCRError(error_msg)
                 
             try:
-                # For the demonstration, we'll create a document ID and store the file content
-                # In a real implementation, we would use the Mistral API
-                import base64
+                # Use Mistral API to upload the document
+                response = self.client.upload_document(
+                    file_content=file_content,
+                    filename=file_path.name
+                )
                 
-                # Encode file content as base64
-                encoded_content = base64.b64encode(file_content).decode('utf-8')
+                # Extract document ID from response
+                document_id = response.id
                 
-                # Generate a document ID based on the file properties
-                document_id = f"doc_{file_path.stem}_{hash(encoded_content) % 10000}"
-                
-                # Store file information in a cache for retrieval in document processing
-                self._document_cache = getattr(self, '_document_cache', {})
-                self._document_cache[document_id] = {
-                    'filename': file_path.name,
-                    'content': encoded_content,
-                    'path': str(file_path),
-                }
-                
-                self.logger.debug(f"Document uploaded, ID: {document_id}")
+                self.logger.debug(f"Document uploaded successfully, ID: {document_id}")
                 return document_id
                 
             except Exception as e:
@@ -218,48 +208,51 @@ class MistralOCR:
                 self.logger.error(error_msg)
                 raise OCRError(error_msg)
 
-            # Check if we have the document in our cache
-            document_cache = getattr(self, '_document_cache', {})
-            if document_id not in document_cache:
-                error_msg = f"Document ID not found: {document_id}"
-                self.logger.error(error_msg)
-                raise OCRError(error_msg)
-
-            # Get document details
-            doc_info = document_cache[document_id]
-            filename = doc_info.get('filename', 'document.pdf')
-            
-            self.logger.debug(f"Processing document: {filename}")
-            
             # Generate extraction prompt
             prompt = self._generate_extraction_prompt(document_id)
             
-            # In a real implementation, we would call the Mistral API with the document ID
-            # For this implementation, we'll process based on file type
             if self.client is None:
                 self.logger.error("Mistral client is not initialized")
                 raise OCRError("Mistral client is not initialized")
                 
-            # Send a request to the Mistral API (this is a simplification)
+            # Send a request to the Mistral API
             self.logger.debug("Sending OCR request to Mistral API")
             
-            # Use file type to determine processing approach
-            if any(ext in filename.lower() for ext in ['pdf', 'docx']):
-                element_dicts = self._process_document_type(filename)
-            elif any(ext in filename.lower() for ext in ['png', 'jpg', 'jpeg', 'tiff']):
-                element_dicts = self._process_image_type(filename)
-            else:
-                element_dicts = self._process_generic_type(filename)
+            try:
+                # Call Mistral API with the document ID and prompt
+                messages = [
+                    UserMessage(
+                        content=prompt,
+                        document_ids=[document_id]
+                    )
+                ]
                 
-            # Mock a response structure similar to what would come from the API
-            response = {"elements": element_dicts}
+                response = self.client.chat(
+                    model=self.model,
+                    messages=messages,
+                )
                 
-            # Parse response into document elements
-            self.logger.debug("Parsing response into document elements")
-            elements = self._parse_response(response)
-            self.logger.debug(f"Extracted {len(elements)} document elements")
+                # Extract text content from response
+                text_content = response.choices[0].message.content
+                
+                # Extract structured elements from the text response
+                element_dicts = self._extract_elements_from_text(text_content)
+                
+                if not element_dicts:
+                    self.logger.warning("Failed to extract structured elements, using text as paragraph")
+                    # Fallback: treat the entire response as a single paragraph
+                    element_dicts = [{"type": "paragraph", "content": text_content}]
+                
+                # Parse response into document elements
+                self.logger.debug("Parsing response into document elements")
+                elements = self._parse_response({"elements": element_dicts})
+                self.logger.debug(f"Extracted {len(elements)} document elements")
 
-            return elements
+                return elements
+                
+            except Exception as e:
+                self.logger.error(f"API request failed: {str(e)}")
+                raise APIError(f"Failed to process document with API: {str(e)}")
 
         except (APIError, OCRError):
             # Re-raise our custom exceptions
@@ -464,263 +457,6 @@ class MistralOCR:
             self.logger.error(f"Error extracting elements from text: {str(e)}")
             return None
             
-    def _process_document_type(self, filename: str) -> List[Dict[str, Any]]:
-        """Process a PDF or DOCX document and extract elements.
-        
-        Args:
-            filename: The name of the document
-            
-        Returns:
-            List[Dict[str, Any]]: Extracted document elements
-        """
-        # In a real implementation, this would extract actual content from the document
-        
-        # Generate a realistic document structure based on the filename
-        import hashlib
-        import re
-        
-        # Create a deterministic but varied structure based on the filename
-        seed = int(hashlib.md5(filename.encode()).hexdigest(), 16) % 10000
-        
-        # Extract potential title from filename
-        title = re.sub(r"[_.-]", " ", filename.split(".")[0])
-        title = re.sub(r"(\w)(\w*)", lambda m: m.group(1).upper() + m.group(2), title)
-        
-        elements = [
-            {
-                "type": "heading",
-                "level": 1,
-                "content": title,
-            }
-        ]
-        
-        # Add sections based on the seed value
-        if seed % 4 == 0:
-            # Business report
-            elements.extend([
-                {
-                    "type": "heading",
-                    "level": 2,
-                    "content": "Executive Summary",
-                },
-                {
-                    "type": "paragraph",
-                    "content": "This document provides a comprehensive analysis of the quarterly financial performance. "
-                            "Key indicators show positive growth across multiple sectors, with technology and healthcare "
-                            "leading the expansion. Year-over-year comparisons demonstrate a 15% increase in overall revenue.",
-                },
-                {
-                    "type": "heading",
-                    "level": 2,
-                    "content": "Key Findings",
-                },
-                {"type": "list_item", "content": "Revenue increased by 15% compared to previous quarter"},
-                {"type": "list_item", "content": "Operating expenses reduced by 8% due to automation initiatives"},
-                {"type": "list_item", "content": "Customer acquisition costs decreased while retention rates improved"},
-                {
-                    "type": "heading",
-                    "level": 2,
-                    "content": "Financial Summary",
-                },
-                {
-                    "type": "table",
-                    "headers": ["Metric", "Q1", "Q2", "Q3", "YoY Change"],
-                    "rows": [
-                        ["Revenue", "$1.2M", "$1.4M", "$1.5M", "+15%"],
-                        ["Expenses", "$0.8M", "$0.75M", "$0.73M", "-8%"],
-                        ["Net Income", "$0.4M", "$0.65M", "$0.77M", "+92%"],
-                        ["Customers", "1,200", "1,350", "1,500", "+25%"],
-                    ],
-                },
-            ])
-        elif seed % 4 == 1:
-            # Technical document
-            elements.extend([
-                {
-                    "type": "paragraph",
-                    "content": "This technical specification describes the system architecture and component interactions "
-                            "for the proposed solution. The document outlines key requirements, design patterns, and "
-                            "implementation considerations.",
-                },
-                {
-                    "type": "heading",
-                    "level": 2,
-                    "content": "System Requirements",
-                },
-                {"type": "list_item", "content": "Linux-based server environment (Ubuntu 22.04 LTS recommended)"},
-                {"type": "list_item", "content": "Minimum 8GB RAM, 4 CPU cores, 100GB storage"},
-                {"type": "list_item", "content": "PostgreSQL 14.0 or later for data storage"},
-                {"type": "list_item", "content": "Docker and Docker Compose for containerization"},
-            ])
-        else:
-            # General report
-            elements.extend([
-                {
-                    "type": "paragraph",
-                    "content": "This document provides information about the project status and next steps. "
-                            "Key milestones have been achieved and the team is on track to deliver as planned.",
-                },
-                {
-                    "type": "heading",
-                    "level": 2,
-                    "content": "Current Status",
-                },
-                {"type": "list_item", "content": "Phase 1 completed on schedule"},
-                {"type": "list_item", "content": "User testing reveals 95% satisfaction rate"},
-                {"type": "list_item", "content": "Performance metrics exceed expectations"},
-            ])
-        
-        # Add a conclusion
-        elements.append({
-            "type": "heading",
-            "level": 2,
-            "content": "Conclusion",
-        })
-        elements.append({
-            "type": "paragraph",
-            "content": "This document summarizes the key points and findings. For more detailed information, "
-                    "please refer to the supporting materials or contact the author.",
-        })
-        
-        return elements
-        
-    def _process_image_type(self, filename: str) -> List[Dict[str, Any]]:
-        """Process an image file and extract elements.
-        
-        Args:
-            filename: The name of the image
-            
-        Returns:
-            List[Dict[str, Any]]: Extracted document elements
-        """
-        # In a real implementation, this would use OCR to extract text from the image
-        
-        # Generate a realistic image analysis based on the filename
-        import hashlib
-        
-        # Create a deterministic but varied analysis based on the filename
-        seed = int(hashlib.md5(filename.encode()).hexdigest(), 16) % 1000
-        
-        elements = [
-            {
-                "type": "heading",
-                "level": 1,
-                "content": f"Image Analysis: {filename}",
-            },
-            {
-                "type": "image",
-                "id": "original_image",
-                "caption": f"Original image: {filename}",
-            },
-        ]
-        
-        # Different types of image content based on seed
-        if seed % 3 == 0:
-            # Document scan
-            elements.extend([
-                {
-                    "type": "heading",
-                    "level": 2,
-                    "content": "Document Text",
-                },
-                {
-                    "type": "paragraph",
-                    "content": "This appears to be a scanned document containing text and formatting. "
-                            "The OCR system has identified the following content with high confidence.",
-                },
-                {
-                    "type": "paragraph",
-                    "content": "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nullam auctor vulputate "
-                            "magna, at finibus mauris dignissim quis. Phasellus commodo justo et lacus "
-                            "condimentum efficitur. Cras sit amet tincidunt tellus, in rhoncus tellus.",
-                },
-            ])
-        else:
-            # Photo with text
-            elements.extend([
-                {
-                    "type": "heading",
-                    "level": 2,
-                    "content": "Image Content",
-                },
-                {
-                    "type": "paragraph",
-                    "content": "This image appears to be a photograph containing both visual elements and text. "
-                            "The OCR system has identified and extracted the text content.",
-                },
-                {
-                    "type": "paragraph",
-                    "content": "The quick brown fox jumps over the lazy dog. This pangram contains all "
-                            "letters of the English alphabet.",
-                },
-            ])
-        
-        # Add technical details
-        elements.extend([
-            {
-                "type": "heading",
-                "level": 2,
-                "content": "Technical Details",
-            },
-            {
-                "type": "list_item", "content": f"Image format: {filename.split('.')[-1].upper()}",
-            },
-            {
-                "type": "list_item", "content": f"OCR confidence score: {80 + (seed % 20)}%",
-            },
-            {
-                "type": "list_item", "content": f"Text elements detected: {5 + (seed % 10)}",
-            },
-        ])
-        
-        return elements
-        
-    def _process_generic_type(self, filename: str) -> List[Dict[str, Any]]:
-        """Process a generic document and extract elements.
-        
-        Args:
-            filename: The name of the document
-            
-        Returns:
-            List[Dict[str, Any]]: Extracted document elements
-        """
-        # Generic processing for unknown document types
-        
-        return [
-            {
-                "type": "heading",
-                "level": 1,
-                "content": f"Document Content: {filename}",
-            },
-            {
-                "type": "paragraph",
-                "content": "This document has been processed using OCR technology. "
-                        "The content has been extracted and structured for easier reading and analysis.",
-            },
-            {
-                "type": "heading",
-                "level": 2,
-                "content": "Document Summary",
-            },
-            {
-                "type": "paragraph",
-                "content": "The document appears to contain textual information and potentially other elements "
-                        "such as tables or images. The OCR system has processed the content and extracted "
-                        "the following structured information.",
-            },
-            {
-                "type": "list_item",
-                "content": "Document type: Unknown/Generic",
-            },
-            {
-                "type": "list_item",
-                "content": "Content type: Primarily text-based",
-            },
-            {
-                "type": "list_item",
-                "content": "Processing completed successfully",
-            },
-        ]
 
     def _parse_response(
         self, response: Dict[str, Any]
