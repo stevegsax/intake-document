@@ -194,7 +194,8 @@ class MistralOCR:
                 ]
                 
                 # Call the Mistral API correctly
-                response = self.client.chat(
+                chat = self.client.chat
+                response = chat.create(
                     model=self.model,
                     messages=messages
                 )
