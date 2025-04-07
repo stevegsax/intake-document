@@ -193,11 +193,11 @@ class MistralOCR:
                     )
                 ]
                 
-                # Call the Mistral API directly
-                response = self.client.chat(
+                # Call the Mistral API correctly
+                response = self.client.chat_completions(
                     model=self.model,
                     messages=messages
-                ).choices[0].message
+                )
                 
                 # Extract text content from response
                 text_content = response.choices[0].message.content
