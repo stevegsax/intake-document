@@ -193,8 +193,8 @@ class MistralOCR:
                     )
                 ]
                 
-                # Create a chat completion using the Mistral API
-                response = self.client.chat.completions.create(
+                # Make a direct API call without using the chat object
+                response = self.client(
                     model=self.model,
                     messages=messages
                 )
