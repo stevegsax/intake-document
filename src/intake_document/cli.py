@@ -160,10 +160,17 @@ def main(
                     + f"Outputs saved to: {config.settings.app.output_dir}"
                 )
             else:
-                logger.error(f"Invalid path: {input_path}")
-                console.print(
-                    f"[bold red]Error:[/] {input_path} is not a valid file or directory"
-                )
+                # Check if the path exists at all
+                if not input_path.exists():
+                    logger.error(f"Path does not exist: {input_path}")
+                    console.print(
+                        f"[bold red]Error:[/] {input_path} does not exist"
+                    )
+                else:
+                    logger.error(f"Invalid path: {input_path}")
+                    console.print(
+                        f"[bold red]Error:[/] {input_path} is not a valid file or directory"
+                    )
                 raise typer.Exit(1)
         else:
             if not show_config:
