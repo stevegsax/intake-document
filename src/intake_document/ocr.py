@@ -219,7 +219,7 @@ class MistralOCR:
             # Re-raise our custom exceptions
             raise
         except Exception as e:
-            error_msg = f"Failed to extract document elements from {document_id}"
+            error_msg = f"Failed to extract document elements from {file_info['file_path']}"
             self.logger.error(f"{error_msg}: {str(e)}")
 
             # Determine if it's an API error or another type of error
