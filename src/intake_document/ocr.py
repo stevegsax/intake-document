@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
 from mistralai.client import MistralClient
-from mistralai.models.chat_completion import ChatMessage
+from mistralai.models.chat import ChatMessage, UserMessage
 
 from intake_document.config import config
 from intake_document.models.document import (
@@ -185,8 +185,7 @@ class MistralOCR:
                 # Call Mistral API with the file content and prompt
                 # Use the chat method with file attachments
                 messages = [
-                    ChatMessage(
-                        role="user",
+                    UserMessage(
                         content=prompt,
                         attachments=[
                             {"data": file_info["content"], "type": self._get_mime_type(file_info["filename"])}
