@@ -193,8 +193,8 @@ class MistralOCR:
                     )
                 ]
                 
-                # Make a direct API call without using the chat object
-                response = self.client(
+                # Use the client's chat method properly
+                response = self.client.chat(
                     model=self.model,
                     messages=messages
                 )
