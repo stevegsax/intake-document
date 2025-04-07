@@ -70,16 +70,13 @@ class MistralOCR:
         self.logger.debug(f"Document file type: {document.file_type}")
 
         try:
-            # Upload document to Mistral
-            self.logger.debug("Uploading document to Mistral.ai")
-            document_id = self._upload_document(document.path)
-            self.logger.debug(
-                f"Document uploaded successfully, ID: {document_id}"
-            )
-
-            # Process with OCR
-            self.logger.debug("Extracting document elements from OCR results")
-            elements = self._extract_document_elements(document_id)
+            # Prepare document for processing
+            self.logger.debug("Preparing document for Mistral.ai")
+            file_info = self._prepare_document(document.path)
+            
+            # Process with OCR directly
+            self.logger.debug("Extracting document elements using OCR")
+            elements = self._extract_document_elements(file_info)
             self.logger.debug(
                 f"Extracted {len(elements)} elements from document"
             )
@@ -106,20 +103,19 @@ class MistralOCR:
             self.logger.error(f"{error_msg}: {str(e)}")
             raise OCRError(error_msg, detail=str(e))
 
-    def _upload_document(self, file_path: Path) -> str:
-        """Upload a document to Mistral.ai.
+    def _prepare_document(self, file_path: Path) -> Dict[str, Any]:
+        """Prepare a document for processing with Mistral.ai.
 
         Args:
             file_path: Path to the document file
 
         Returns:
-            str: The document ID returned by Mistral
+            Dict[str, Any]: Dictionary with file information
 
         Raises:
-            APIError: If the upload fails due to API issues
-            OCRError: If the upload fails for other reasons
+            OCRError: If the file preparation fails
         """
-        self.logger.debug(f"Uploading document: {file_path}")
+        self.logger.debug(f"Preparing document: {file_path}")
 
         try:
             # Check file exists and is readable
@@ -141,56 +137,28 @@ class MistralOCR:
             with open(file_path, "rb") as f:
                 file_content = f.read()
                 
-            # Upload to Mistral
-            if self.client is None:
-                error_msg = "Mistral client is not initialized"
-                self.logger.error(f"{error_msg}. Please provide an API key.")
-                raise OCRError(error_msg)
-                
-            try:
-                # Use Mistral API to upload the document
-                response = self.client.upload_document(
-                    file_content=file_content,
-                    filename=file_path.name
-                )
-                
-                # Extract document ID from response
-                document_id = response.id
-                
-                self.logger.debug(f"Document uploaded successfully, ID: {document_id}")
-                return document_id
-                
-            except Exception as e:
-                self.logger.error(f"API upload failed: {str(e)}")
-                raise APIError(f"Failed to upload document via API: {str(e)}")
+            # Return file information
+            return {
+                "content": file_content,
+                "filename": file_path.name,
+                "file_path": file_path
+            }
 
         except OCRError:
             # Re-raise OCR errors
             raise
-        except APIError:
-            # Re-raise API errors
-            raise
         except Exception as e:
-            error_msg = f"Failed to upload document: {file_path}"
+            error_msg = f"Failed to prepare document: {file_path}"
             self.logger.error(f"{error_msg}: {str(e)}")
-
-            # Determine if it's an API error or another type of error
-            if (
-                "ConnectionError" in str(e)
-                or "Timeout" in str(e)
-                or "Status code" in str(e)
-            ):
-                raise APIError(error_msg, detail=str(e))
-            else:
-                raise OCRError(error_msg, detail=str(e))
+            raise OCRError(error_msg, detail=str(e))
 
     def _extract_document_elements(
-        self, document_id: str
+        self, file_info: Dict[str, Any]
     ) -> List[DocumentElement]:
         """Extract document elements from OCR results.
 
         Args:
-            document_id: The document ID from upload
+            file_info: Dictionary with file information
 
         Returns:
             List[DocumentElement]: List of extracted elements
@@ -199,17 +167,12 @@ class MistralOCR:
             APIError: If extraction fails due to API issues
             OCRError: If extraction fails for other reasons
         """
-        self.logger.debug(f"Extracting elements from document: {document_id}")
+        file_path = file_info["file_path"]
+        self.logger.debug(f"Extracting elements from document: {file_path}")
 
         try:
-            # Validate document ID
-            if not document_id:
-                error_msg = "Invalid document ID: empty or None"
-                self.logger.error(error_msg)
-                raise OCRError(error_msg)
-
             # Generate extraction prompt
-            prompt = self._generate_extraction_prompt(document_id)
+            prompt = self._generate_extraction_prompt(file_path.name)
             
             if self.client is None:
                 self.logger.error("Mistral client is not initialized")
@@ -219,17 +182,15 @@ class MistralOCR:
             self.logger.debug("Sending OCR request to Mistral API")
             
             try:
-                # Call Mistral API with the document ID and prompt
+                # Call Mistral API with the file content and prompt
                 messages = [
-                    UserMessage(
-                        content=prompt,
-                        document_ids=[document_id]
-                    )
+                    UserMessage(content=prompt)
                 ]
                 
                 response = self.client.chat(
                     model=self.model,
                     messages=messages,
+                    files=[file_info["content"]]
                 )
                 
                 # Extract text content from response
@@ -271,17 +232,17 @@ class MistralOCR:
             else:
                 raise OCRError(error_msg, detail=str(e))
 
-    def _generate_extraction_prompt(self, document_id: str) -> str:
+    def _generate_extraction_prompt(self, filename: str) -> str:
         """Generate a prompt for document extraction.
 
         Args:
-            document_id: The document ID to reference
+            filename: The name of the file being processed
 
         Returns:
             str: The generated prompt
         """
         return f"""
-        Extract the content from the document with ID '{document_id}'.
+        Extract the content from the attached document '{filename}'.
         
         Please analyze the document and extract all of its content, maintaining the 
         document's structure and hierarchy. Identify and properly format:
