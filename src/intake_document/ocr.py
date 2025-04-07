@@ -194,18 +194,15 @@ class MistralOCR:
                 ]
                 
                 # Call the Mistral API correctly
-                response = self.client.chat_stream(
+                response = self.client.chat(
                     model=self.model,
                     messages=messages
                 )
                 
-                # Collect the response content from the stream
-                text_content = ""
-                for chunk in response:
-                    if chunk.choices and chunk.choices[0].delta and chunk.choices[0].delta.content:
-                        text_content += chunk.choices[0].delta.content
+                # Extract text content from response
+                text_content = response.choices[0].message.content
                 
-                # Text content has already been collected from the stream
+                # Text content has been extracted from the response
                 
                 # Extract structured elements from the text response
                 element_dicts = self._extract_elements_from_text(text_content)
