@@ -183,14 +183,19 @@ class MistralOCR:
             
             try:
                 # Call Mistral API with the file content and prompt
+                # Use the chat method with file attachments
                 messages = [
-                    UserMessage(content=prompt)
+                    UserMessage(
+                        content=prompt,
+                        attachments=[
+                            {"data": file_info["content"], "type": self._get_mime_type(file_info["filename"])}
+                        ]
+                    )
                 ]
                 
-                response = self.client.chat_with_files(
+                response = self.client.chat(
                     model=self.model,
-                    messages=messages,
-                    files=[file_info["content"]]
+                    messages=messages
                 )
                 
                 # Extract text content from response
@@ -232,6 +237,26 @@ class MistralOCR:
             else:
                 raise OCRError(error_msg, detail=str(e))
 
+    def _get_mime_type(self, filename: str) -> str:
+        """Determine the MIME type based on file extension.
+        
+        Args:
+            filename: The name of the file
+            
+        Returns:
+            str: The MIME type for the file
+        """
+        ext = filename.lower().split('.')[-1]
+        mime_types = {
+            'pdf': 'application/pdf',
+            'png': 'image/png',
+            'jpg': 'image/jpeg',
+            'jpeg': 'image/jpeg',
+            'tiff': 'image/tiff',
+            'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        }
+        return mime_types.get(ext, 'application/octet-stream')
+        
     def _generate_extraction_prompt(self, filename: str) -> str:
         """Generate a prompt for document extraction.
 
