@@ -187,7 +187,7 @@ class MistralOCR:
                     UserMessage(content=prompt)
                 ]
                 
-                response = self.client.chat(
+                response = self.client.chat_with_files(
                     model=self.model,
                     messages=messages,
                     files=[file_info["content"]]
