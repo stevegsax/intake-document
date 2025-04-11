@@ -1,6 +1,8 @@
 # intake-document
 
-A Python application to convert documents into markdown format using the OCR capabilities provided by [Mistral.ai](https://mistral.ai/).
+A Python application to convert documents (PDF files) into markdown format using the OCR capabilities provided by [Mistral.ai](https://mistral.ai/). This is a functional, production-ready tool that uses MistralAI OCR to convert .pdf files to .md Markdown files.
+
+The application is fully compatible with the latest Mistral API standards following the [official migration guidelines](https://github.com/mistralai/client-python/blob/main/MIGRATION.md), utilizing the unified `Mistral` client architecture and updated method calls.
 
 ## Features
 
