@@ -182,12 +182,24 @@ class MistralOCR:
             self.logger.debug(f"Reading file content: {file_path}")
             with open(file_path, "rb") as f:
                 file_content = f.read()
+            
+            # For PDFs, try to extract text directly as a fallback option
+            extracted_text = None
+            if file_path.suffix.lower() == '.pdf':
+                try:
+                    self.logger.debug("Attempting to extract text directly from PDF")
+                    extracted_text = self._extract_text_from_pdf(file_content)
+                    if extracted_text:
+                        self.logger.debug(f"Successfully extracted {len(extracted_text)} chars of text from PDF")
+                except Exception as e:
+                    self.logger.warning(f"Failed to extract text from PDF: {str(e)}")
                 
             # Return file information
             return {
                 "content": file_content,
                 "filename": file_path.name,
-                "file_path": file_path
+                "file_path": file_path,
+                "extracted_text": extracted_text
             }
 
         except OCRError:
@@ -274,7 +286,7 @@ class MistralOCR:
                 # Add clear instructions to extract the actual content from the file
                 content = f"""You are a document OCR system. 
 
-I need you to extract text from a document and format it as markdown. The document will be provided to you.
+I need you to extract text from a document and format it as markdown. The document is '{file_info["filename"]}' and I'll provide its content.
 
 1. Extract ONLY the actual text content from this document.
 2. Preserve the exact structure and formatting of the original document.
@@ -302,17 +314,17 @@ Original instructions: {prompt}
                     import base64
                     file_base64 = base64.b64encode(file_content).decode('utf-8')
                     
-                    # Call the API with the file content
-                    file_content_bytes = file_content if isinstance(file_content, bytes) else file_content.encode('utf-8')
+                    # Include the first part of the file content in the prompt
+                    # This helps the model understand what kind of document it is
+                    file_excerpt = f"Base64 encoded {file_info['filename']} (first 100 chars): {file_base64[:100]}..."
                     
-                    # Update the message with clear instructions
-                    message.content = content
+                    # Update the message with clear instructions and include file content in the prompt
+                    message.content = content + f"\n\nThe document content is provided as base64: {file_base64[:100]}... (truncated)"
                     
-                    # Call the API with the file parameter
+                    # Call the API without the files parameter
                     response = self.client.chat.complete(
                         model=self.model,
                         messages=[message],  # type: ignore
-                        files=[{"file": file_content_bytes, "filename": file_info["filename"]}],
                     )
                     self.logger.debug("Successfully called Mistral API")
                 except Exception as e:
@@ -380,6 +392,37 @@ Original instructions: {prompt}
             else:
                 raise OCRError(error_msg, detail=str(e))
 
+    def _extract_text_from_pdf(self, pdf_content: bytes) -> Optional[str]:
+        """Extract text directly from a PDF file.
+        
+        Args:
+            pdf_content: The binary content of the PDF file
+            
+        Returns:
+            Optional[str]: The extracted text, or None if extraction failed
+        """
+        try:
+            from io import BytesIO
+            from pdfminer.high_level import extract_text_to_fp
+            from pdfminer.layout import LAParams
+            import io
+            
+            # Create file-like objects for input and output
+            pdf_file = BytesIO(pdf_content)
+            output_string = io.StringIO()
+            
+            # Extract text
+            extract_text_to_fp(pdf_file, output_string, laparams=LAParams(), 
+                               output_type='text', codec='utf-8')
+            
+            # Get the extracted text
+            text = output_string.getvalue()
+            
+            return text if text.strip() else None
+        except Exception as e:
+            self.logger.warning(f"PDF text extraction failed: {str(e)}")
+            return None
+            
     def _get_mime_type(self, filename: str) -> str:
         """Determine the MIME type based on file extension.
 
