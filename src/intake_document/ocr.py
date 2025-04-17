@@ -283,6 +283,9 @@ class MistralOCR:
                     "Using OCR approach for document processing"
                 )
                 
+                # Check if we have extracted text from the PDF
+                extracted_text = file_info.get("extracted_text")
+                
                 # Add clear instructions to extract the actual content from the file
                 content = f"""You are a document OCR system. 
 
@@ -297,9 +300,15 @@ I need you to extract text from a document and format it as markdown. The docume
 7. Respond ONLY with the markdown content of the document.
 
 Document: '{file_info["filename"]}'
-
-Original instructions: {prompt}
 """
+
+                # If we have extracted text, include it in the prompt
+                if extracted_text:
+                    content += f"\n\nExtracted text from the document:\n\n```\n{extracted_text[:4000]}\n```\n"
+                    if len(extracted_text) > 4000:
+                        content += "\n(text truncated due to length)"
+                
+                content += f"\nOriginal instructions: {prompt}"
 
                 # Create proper UserMessage object
                 message = UserMessage(content=content)
