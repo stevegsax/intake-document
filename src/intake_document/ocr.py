@@ -297,10 +297,10 @@ Original instructions: {prompt}
                         "Calling Mistral API with file attachment"
                     )
                     # Create a chat completion with the file content
-                    response = self.client.chat.completions.create(
+                    response = self.client.chat.complete(
                         model=self.model,
                         messages=[message],  # type: ignore
-                        attachments=[{"data": file_content, "name": file_info["filename"]}],
+                        files=[{"data": file_content, "name": file_info["filename"]}],
                     )
                     self.logger.debug("Successfully called Mistral API")
                 except Exception as e:
