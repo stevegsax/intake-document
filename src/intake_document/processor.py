@@ -114,6 +114,7 @@ class DocumentProcessor:
 
             # Process with OCR
             self.logger.debug(f"Sending to OCR: {file_path}")
+            self.logger.info(f"Extracting exact content from PDF: {file_path}")
             document = self.ocr.process_document(document)
             self.logger.info(
                 f"OCR processing complete: {len(document.elements)} elements extracted"

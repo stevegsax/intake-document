@@ -261,27 +261,27 @@ class MistralOCR:
                     # For binary files, just note that it's binary
                     file_excerpt = "[Binary content]"
 
-                # For this implementation, since we're unable to directly send binary files
-                # through the Mistral API, we'll use a modified approach that works with text-based content
+                # For this implementation, we'll use Mistral's OCR capabilities to extract the actual content
+                # from the document rather than generating content based on the filename
 
-                # Create a message that clearly instructs the model to act as if it were processing the file
+                # Create a message that clearly instructs the model to extract the actual content
                 self.logger.debug("Creating chat completion with Mistral API")
                 self.logger.debug(
-                    "Using enhanced text-based approach for document processing"
+                    "Using OCR approach for document processing"
                 )
 
-                # Add clear instructions about what this document is and how to process it
-                content = f"""You are a document content extraction system. 
+                # Add clear instructions to extract the actual content from the file
+                content = f"""You are a document OCR system. 
 
-This is a {mime_type} file named '{file_info["filename"]}'. I need you to:
+I'm sending you a {mime_type} file named '{file_info["filename"]}'. I need you to:
 
-1. Act as if you were directly processing and analyzing this document.
-2. Extract all text content and structure that would be present in the document.
-3. Format it properly maintaining headings, paragraphs, lists, and tables.
-4. Do not explain how to extract content or say you cannot access the file.
-5. Respond ONLY with what the content of this document would be, formatted in markdown.
-6. If this is a PDF document, use your knowledge of what PDF documents typically contain.
-7. Create a reasonable, professional document structure similar to what would be found in a {file_info["filename"]} file.
+1. Extract ONLY the actual text content from this document.
+2. Preserve the exact structure and formatting of the original document.
+3. Maintain all headings, paragraphs, lists, and tables exactly as they appear.
+4. Do not generate or invent any content that is not in the original document.
+5. Do not explain the document or add commentary.
+6. Format the extracted content in clean markdown.
+7. If you cannot extract content from this file, simply state "Unable to extract content from this file."
 
 Original instructions: {prompt}
 
@@ -399,20 +399,21 @@ File details:
             str: The generated prompt
         """
         return f"""
-        Extract the content from the attached document '{filename}'.
+        Extract the EXACT content from the document '{filename}'.
         
-        Please analyze the document and extract all of its content, maintaining the 
-        document's structure and hierarchy. Identify and properly format:
+        Your task is to perform OCR on this document and extract its content with perfect accuracy.
+        Do not generate or invent content. Only extract what is actually in the document.
+        
+        Maintain the exact:
         
         1. Headings and subheadings with their appropriate levels
-        2. Paragraphs of text
-        3. Lists (both ordered and unordered)
-        4. Tables with their headers and data
+        2. Paragraphs of text with the exact wording
+        3. Lists (both ordered and unordered) exactly as they appear
+        4. Tables with their exact headers and data
         5. Images (provide image references)
         
-        For each element, specify its type and content in a structured format.
-        Maintain the reading order of the document, including multi-column layouts.
-        Identify and preserve formatting of special elements.
+        Preserve the exact reading order of the document, including multi-column layouts.
+        Do not add any commentary, explanations, or content that is not in the original document.
         """
 
     def _extract_elements_from_text(

@@ -129,6 +129,9 @@ class MarkdownRenderer:
         # If it's a list item, prefix with - or *
         if element.is_list_item:
             self.logger.debug("Rendering as list item")
+            # Preserve exact formatting of list items
+            if element.content.startswith("- ") or element.content.startswith("* "):
+                return element.content
             return f"- {element.content}"
 
         # Otherwise it's a regular paragraph
