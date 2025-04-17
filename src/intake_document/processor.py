@@ -145,7 +145,7 @@ class DocumentProcessor:
             raise DocumentError(error_msg, detail=str(e))
 
     def process_directory(self, dir_path: Path) -> List[Path]:
-        """Process all supported documents in a directory.
+        """Process all supported documents in a directory using batch processing.
 
         Args:
             dir_path: Path to the directory
@@ -177,32 +177,71 @@ class DocumentProcessor:
                 "total": file_count,
             }
 
-            # Process all supported files
-            output_paths = []
+            # Collect documents to process in batch
+            documents_to_process = []
+            file_paths = []
+            
+            # First pass: identify supported files and create Document objects
             for file_path in dir_path.iterdir():
                 if file_path.is_file():
+                    # Check if file type is supported
+                    doc_type = self._get_document_type(file_path)
+                    if doc_type is None:
+                        self.logger.debug(f"Skipping unsupported file: {file_path}")
+                        stats["skipped"] += 1
+                        continue
+                    
                     try:
-                        # Check if file type is supported
-                        if self._get_document_type(file_path) is None:
-                            self.logger.debug(
-                                f"Skipping unsupported file: {file_path}"
-                            )
-                            stats["skipped"] += 1
-                            continue
-
-                        # Process the file
-                        self.logger.debug(
-                            f"Processing file {stats['processed'] + stats['skipped'] + stats['failed'] + 1}/{file_count}: {file_path}"
-                        )
-                        output_path = self.process_file(file_path)
-                        output_paths.append(output_path)
-                        stats["processed"] += 1
-
+                        # Create document model
+                        self.logger.debug(f"Creating document model for: {file_path}")
+                        document = Document(path=file_path, file_type=doc_type)
+                        documents_to_process.append(document)
+                        file_paths.append(file_path)
                     except Exception as e:
                         stats["failed"] += 1
-                        self.logger.error(
-                            f"Error processing {file_path}: {str(e)}"
-                        )
+                        self.logger.error(f"Error creating document for {file_path}: {str(e)}")
+            
+            # Process documents in batch if we have any
+            output_paths = []
+            if documents_to_process:
+                self.logger.info(f"Processing {len(documents_to_process)} documents in batch")
+                
+                # Process with OCR in batch
+                try:
+                    processed_documents = self.ocr.process_documents_batch(documents_to_process)
+                    
+                    # Process each document individually for rendering and saving
+                    for document in processed_documents:
+                        try:
+                            # Convert to markdown
+                            self.logger.debug(f"Converting to markdown: {document.path}")
+                            document = self.renderer.render_markdown(document)
+                            
+                            if document.markdown:
+                                self.logger.debug(f"Markdown generated: {len(document.markdown)} characters")
+                            else:
+                                self.logger.warning("No markdown content generated")
+                            
+                            # Save to output file
+                            output_path = self._get_output_path(document.path)
+                            self._save_markdown(document, output_path)
+                            output_paths.append(output_path)
+                            stats["processed"] += 1
+                            self.logger.info(f"Document processing complete: {document.path} → {output_path}")
+                        except Exception as e:
+                            stats["failed"] += 1
+                            self.logger.error(f"Error processing {document.path}: {str(e)}")
+                except Exception as e:
+                    # If batch processing fails, fall back to individual processing
+                    self.logger.warning(f"Batch processing failed: {str(e)}. Falling back to individual processing.")
+                    for document, file_path in zip(documents_to_process, file_paths):
+                        try:
+                            output_path = self.process_file(file_path)
+                            output_paths.append(output_path)
+                            stats["processed"] += 1
+                        except Exception as e:
+                            stats["failed"] += 1
+                            self.logger.error(f"Error processing {file_path}: {str(e)}")
 
             # Log processing summary
             self.logger.info(

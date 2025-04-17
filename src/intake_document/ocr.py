@@ -43,6 +43,52 @@ class MistralOCR:
         self.max_retries = config.settings.mistral.max_retries
         self.timeout = config.settings.mistral.timeout
 
+    def process_documents_batch(self, documents: List[Document]) -> List[Document]:
+        """Process multiple documents through Mistral.ai OCR in batch.
+
+        Args:
+            documents: The list of documents to process
+
+        Returns:
+            List[Document]: The processed documents with extracted elements
+
+        Raises:
+            OCRError: If no API key is configured or document processing fails
+            APIError: If API communication fails
+        """
+        # Check if client is initialized
+        if self.client is None:
+            error_msg = "Mistral client not initialized"
+            self.logger.error(f"{error_msg}. Please provide an API key.")
+            raise OCRError(
+                error_msg,
+                detail="Set MISTRAL_API_KEY environment variable or configure it in the config file.",
+            )
+
+        self.logger.info(f"Processing batch of {len(documents)} documents with OCR")
+        
+        # Process documents in batches according to batch_size setting
+        processed_documents = []
+        
+        for i in range(0, len(documents), self.batch_size):
+            batch = documents[i:i + self.batch_size]
+            self.logger.info(f"Processing batch {i // self.batch_size + 1}: {len(batch)} documents")
+            
+            try:
+                # Process each document in the batch
+                for doc in batch:
+                    self.logger.debug(f"Processing document in batch: {doc.path}")
+                    processed_doc = self.process_document(doc)
+                    processed_documents.append(processed_doc)
+                    
+            except Exception as e:
+                error_msg = f"Error processing batch of documents"
+                self.logger.error(f"{error_msg}: {str(e)}")
+                raise OCRError(error_msg, detail=str(e))
+        
+        self.logger.info(f"Completed processing batch of {len(documents)} documents")
+        return processed_documents
+
     def process_document(self, document: Document) -> Document:
         """Process a document through Mistral.ai OCR.
 
