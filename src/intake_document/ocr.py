@@ -75,7 +75,8 @@ class MistralOCR:
             self.logger.info(f"Processing batch {i // self.batch_size + 1}: {len(batch)} documents")
             
             try:
-                # Process each document in the batch
+                # Process each document in the batch individually
+                # This is because Mistral's API doesn't support true batch processing for documents
                 for doc in batch:
                     self.logger.debug(f"Processing document in batch: {doc.path}")
                     processed_doc = self.process_document(doc)
@@ -182,22 +183,11 @@ class MistralOCR:
             with open(file_path, "rb") as f:
                 file_content = f.read()
                 
-            # Try to extract text content for context if it's a PDF
-            extracted_text = ""
-            if file_path.suffix.lower() == '.pdf':
-                try:
-                    from pdfminer.high_level import extract_text
-                    extracted_text = extract_text(file_path)
-                    self.logger.debug(f"Extracted text from PDF: {len(extracted_text)} characters")
-                except Exception as e:
-                    self.logger.warning(f"Could not extract text from PDF: {str(e)}")
-
             # Return file information
             return {
                 "content": file_content,
                 "filename": file_path.name,
-                "file_path": file_path,
-                "extracted_text": extracted_text
+                "file_path": file_path
             }
 
         except OCRError:
@@ -280,9 +270,6 @@ class MistralOCR:
                 self.logger.debug(
                     "Using OCR approach for document processing"
                 )
-
-                # Get extracted text if available
-                extracted_text = file_info.get("extracted_text", "")
                 
                 # Add clear instructions to extract the actual content from the file
                 content = f"""You are a document OCR system. 
@@ -299,26 +286,20 @@ I'm sending you a {mime_type} file named '{file_info["filename"]}'. I need you t
 8. Respond ONLY with the markdown content of the document.
 
 Original instructions: {prompt}
-
-File details: 
-- Filename: {file_info["filename"]}
-- File type: {mime_type}
-
-Here is the extracted text content from the document:
-{extracted_text}
 """
 
                 # Create proper UserMessage object
                 message = UserMessage(content=content)
 
                 try:
-                    # Use the standard API completion method
+                    # Use the API completion method with file attachment
                     self.logger.debug(
-                        "Calling Mistral API with enhanced instructions"
+                        "Calling Mistral API with file attachment"
                     )
                     response = self.client.chat.complete(
                         model=self.model,
                         messages=[message],  # type: ignore
+                        files=[{"data": file_content, "name": file_info["filename"]}],
                     )
                     self.logger.debug("Successfully called Mistral API")
                 except Exception as e:
