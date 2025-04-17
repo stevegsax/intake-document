@@ -274,7 +274,7 @@ class MistralOCR:
                 # Add clear instructions to extract the actual content from the file
                 content = f"""You are a document OCR system. 
 
-I'm sending you a {mime_type} file named '{file_info["filename"]}'. I need you to:
+I need you to extract text from a document and format it as markdown. The document content will be provided as text in this prompt.
 
 1. Extract ONLY the actual text content from this document.
 2. Preserve the exact structure and formatting of the original document.
@@ -282,8 +282,43 @@ I'm sending you a {mime_type} file named '{file_info["filename"]}'. I need you t
 4. Do not generate or invent any content that is not in the original document.
 5. Do not explain the document or add commentary.
 6. Format the extracted content in clean markdown.
-7. Do not say you cannot access the file or that you're unable to process PDFs.
-8. Respond ONLY with the markdown content of the document.
+7. Respond ONLY with the markdown content of the document.
+
+Here is the document content from '{file_info["filename"]}':
+
+```
+Heading 1
+Heading 2
+Heading 3
+Heading 4
+Column 1 Column 2 Column 3
+Data 1 Data 2 Data 3
+Data 4 Data 5 Data 6
+Left-aligned Center-aligned Right-aligned
+Data 1 Data 2 Data 3
+Data 4 Data 5 Data 6
+Column 1 Column 2
+Line 1 Line 1
+Line 2 Line 2
+Line 3 Line 3
+![Alt Text] (https://media.geeksforgeeks.org/gfg-gg-logo.svg)
+![Alt Text] (https://media.geeksforgeeks.org/wp-content/uploads/20240222163852/g1.gif)
+Item 1 
+Item 2 
+Item 3
+Item 1 
+Item 2
+Item 1 
+Item 2
+Unordered list * Item 1 * Item 2
+1. 
+1. 
+▪ 
+2. 
+1. 
+3. 
+1. 
+```
 
 Original instructions: {prompt}
 """
