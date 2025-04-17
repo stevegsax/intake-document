@@ -296,8 +296,8 @@ Original instructions: {prompt}
                     self.logger.debug(
                         "Calling Mistral API with file attachment"
                     )
-                    # Create a chat with the file content
-                    response = self.client.chat(
+                    # Create a chat completion with the file content
+                    response = self.client.chat.completions.create(
                         model=self.model,
                         messages=[message],  # type: ignore
                         attachments=[{"data": file_content, "name": file_info["filename"]}],
