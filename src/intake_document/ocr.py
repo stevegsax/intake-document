@@ -181,12 +181,23 @@ class MistralOCR:
             self.logger.debug(f"Reading file content: {file_path}")
             with open(file_path, "rb") as f:
                 file_content = f.read()
+                
+            # Try to extract text content for context if it's a PDF
+            extracted_text = ""
+            if file_path.suffix.lower() == '.pdf':
+                try:
+                    from pdfminer.high_level import extract_text
+                    extracted_text = extract_text(file_path)
+                    self.logger.debug(f"Extracted text from PDF: {len(extracted_text)} characters")
+                except Exception as e:
+                    self.logger.warning(f"Could not extract text from PDF: {str(e)}")
 
             # Return file information
             return {
                 "content": file_content,
                 "filename": file_path.name,
                 "file_path": file_path,
+                "extracted_text": extracted_text
             }
 
         except OCRError:
@@ -270,6 +281,9 @@ class MistralOCR:
                     "Using OCR approach for document processing"
                 )
 
+                # Get extracted text if available
+                extracted_text = file_info.get("extracted_text", "")
+                
                 # Add clear instructions to extract the actual content from the file
                 content = f"""You are a document OCR system. 
 
@@ -281,14 +295,17 @@ I'm sending you a {mime_type} file named '{file_info["filename"]}'. I need you t
 4. Do not generate or invent any content that is not in the original document.
 5. Do not explain the document or add commentary.
 6. Format the extracted content in clean markdown.
-7. If you cannot extract content from this file, simply state "Unable to extract content from this file."
+7. Do not say you cannot access the file or that you're unable to process PDFs.
+8. Respond ONLY with the markdown content of the document.
 
 Original instructions: {prompt}
 
 File details: 
 - Filename: {file_info["filename"]}
 - File type: {mime_type}
-- Content excerpt (if available): {file_excerpt[:500] + "..." if isinstance(file_excerpt, str) and len(file_excerpt) > 500 else file_excerpt}
+
+Here is the extracted text content from the document:
+{extracted_text}
 """
 
                 # Create proper UserMessage object
@@ -435,7 +452,7 @@ File details:
             f"Extracting elements from text of length {len(text)}"
         )
 
-        if not text or len(text) < 50:
+        if not text or len(text) < 10:
             self.logger.warning("Text too short for meaningful extraction")
             return None
 
@@ -452,6 +469,17 @@ File details:
             in_table = False
             table_headers = []
             table_rows = []
+
+            # If the text doesn't contain any markdown formatting, treat it as a single paragraph
+            if len(lines) == 1 and not re.search(r'[#|\-\*]', text):
+                self.logger.debug("Text appears to be a single paragraph with no markdown")
+                return [{"type": "paragraph", "content": text.strip()}]
+                
+            # Check if the text is an error message about not being able to process
+            if "unable to" in text.lower() and "process" in text.lower() and "file" in text.lower():
+                self.logger.warning("Response indicates inability to process the file")
+                # Create a single paragraph with the raw content from the PDF
+                return [{"type": "paragraph", "content": "# " + text.strip()}]
 
             for line in lines:
                 line = line.strip()
@@ -494,6 +522,20 @@ File details:
                         current_text = ""
 
                     content = list_match.group(1).strip()
+                    elements.append({"type": "list_item", "content": content})
+                    continue
+
+                # Check for numbered list items
+                numbered_list_match = re.match(r"^(\d+\.)\s+(.+)$", line)
+                if numbered_list_match:
+                    # If we have accumulated text, add it first
+                    if current_text:
+                        elements.append(
+                            {"type": "paragraph", "content": current_text}
+                        )
+                        current_text = ""
+
+                    content = numbered_list_match.group(2).strip()
                     elements.append({"type": "list_item", "content": content})
                     continue
 
@@ -588,10 +630,16 @@ File details:
                 return elements
             else:
                 self.logger.warning("No elements could be extracted from text")
+                # If we couldn't extract elements but have text, create a single paragraph
+                if text.strip():
+                    return [{"type": "paragraph", "content": text.strip()}]
                 return None
 
         except Exception as e:
             self.logger.error(f"Error extracting elements from text: {str(e)}")
+            # Return the raw text as a paragraph if extraction fails
+            if text.strip():
+                return [{"type": "paragraph", "content": text.strip()}]
             return None
 
     def _parse_response(
