@@ -113,7 +113,7 @@ def test_render_complete_document():
         "- First item\n\n"
         "- Second item\n\n"
         "| Column 1 | Column 2 |\n"
-        "| --- | --- |\n"
+        "| ------------- | ------------- |\n"
         "| Data 1 | Data 2 |\n"
         "| Data 3 | Data 4 |\n\n"
         "![A sample image](images/img001.png)"
