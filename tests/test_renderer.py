@@ -70,6 +70,22 @@ def test_render_table_with_uneven_rows():
     assert result == expected
 
 
+def test_render_table_orientation():
+    """Test rendering a table with correct row/column orientation."""
+    renderer = MarkdownRenderer()
+    element = TableElement(
+        headers=["Column 1", "Column 2", "Column 3"],
+        rows=[
+            ["Cell 1, Row 1", "Cell 2, Row 1", "Cell 3, Row 1"],
+            ["Cell 1, Row 2", "Cell 2, Row 2", "Cell 3, Row 2"],
+        ],
+    )
+    result = renderer._render_table_element(element)
+
+    expected = "| Column 1 | Column 2 | Column 3 |\n| ------------- | ------------- | ------------- |\n| Cell 1, Row 1 | Cell 2, Row 1 | Cell 3, Row 1 |\n| Cell 1, Row 2 | Cell 2, Row 2 | Cell 3, Row 2 |"
+    assert result == expected
+
+
 def test_render_image():
     """Test rendering an image element."""
     renderer = MarkdownRenderer()

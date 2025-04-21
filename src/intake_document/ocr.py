@@ -2,7 +2,7 @@
 
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from mistralai import Mistral, UserMessage
 
@@ -604,6 +604,7 @@ Document: '{file_info["filename"]}'
                     ]
                     table_headers = header_cells
                     in_table = True
+                    table_rows = []  # Initialize empty rows
                     continue
 
                 # Table rows
@@ -624,11 +625,16 @@ Document: '{file_info["filename"]}'
                         else:
                             # Truncate if too many cells
                             cells = cells[:len(table_headers)]
-                    
+                        
                     table_rows.append(cells)
                     continue
                 elif in_table:
                     # End of table
+                    # Check if we need to transpose the table (fix orientation)
+                    # If we have more rows than columns, the table is likely in the correct orientation
+                    # If we have more columns than rows, we might need to transpose
+                    
+                    # Add the table with the correct orientation
                     elements.append(
                         {
                             "type": "table",
@@ -697,6 +703,62 @@ Document: '{file_info["filename"]}'
                 return [{"type": "paragraph", "content": text.strip()}]
             return None
 
+    def _fix_table_orientation(self, headers: List[str], rows: List[List[str]]) -> Tuple[List[str], List[List[str]]]:
+        """Fix table orientation if needed.
+        
+        Sometimes OCR might interpret columns as rows. This method detects and fixes that.
+        
+        Args:
+            headers: The table headers
+            rows: The table rows
+            
+        Returns:
+            Tuple[List[str], List[List[str]]]: Corrected headers and rows
+        """
+        # If we have more columns than rows, and the number of columns matches the expected pattern
+        # for a transposed table, we should transpose it back
+        if not rows:
+            return headers, rows
+            
+        # Check if the table might be transposed
+        # Heuristic: If we have more columns than rows, and the number of columns is small (< 10)
+        # it's more likely to be a normal table. If we have many columns (> 10) and few rows,
+        # it might be transposed.
+        num_cols = len(headers)
+        num_rows = len(rows)
+        
+        # Don't transpose small tables or tables with more rows than columns
+        if num_cols <= 10 or num_rows >= num_cols:
+            return headers, rows
+            
+        self.logger.debug(f"Table might be transposed: {num_cols} columns, {num_rows} rows")
+        
+        # Transpose the table
+        transposed_headers = ["Column " + str(i+1) for i in range(num_rows)]
+        transposed_rows = []
+        
+        # Create the first row from the headers
+        first_row = [headers[0]]
+        for row in rows:
+            if row and len(row) > 0:
+                first_row.append(row[0])
+                
+        transposed_rows.append(first_row)
+        
+        # Create the rest of the rows
+        for i in range(1, num_cols):
+            if i < len(headers):
+                new_row = [headers[i]]
+                for row in rows:
+                    if i < len(row):
+                        new_row.append(row[i])
+                    else:
+                        new_row.append("")
+                transposed_rows.append(new_row)
+        
+        self.logger.debug(f"Transposed table: {len(transposed_headers)} columns, {len(transposed_rows)} rows")
+        return transposed_headers, transposed_rows
+
     def _parse_response(
         self, response: Dict[str, Any]
     ) -> List[DocumentElement]:
@@ -737,10 +799,14 @@ Document: '{file_info["filename"]}'
                     )
                 )
             elif elem_type == "table":
+                # Fix table orientation if needed
+                headers, rows = self._fix_table_orientation(
+                    elem["headers"], elem["rows"]
+                )
                 elements.append(
                     TableElement(
-                        headers=elem["headers"],
-                        rows=elem["rows"],
+                        headers=headers,
+                        rows=rows,
                     )
                 )
             elif elem_type == "image":
