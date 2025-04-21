@@ -14,7 +14,13 @@ The application is fully compatible with the latest Mistral API standards follow
   - Headers and subheadings
   - Paragraphs
   - Lists (ordered and unordered)
-  - Tables with headers and data
+  - Tables with headers and data, rendered in markdown syntax:
+    ```
+    | Column 1      | Column 2      |
+    | ------------- | ------------- |
+    | Cell 1, Row 1 | Cell 2, Row 1 |
+    | Cell 1, Row 2 | Cell 1, Row 2 |
+    ```
 - Returns results in clean markdown format for easy parsing and rendering
 - Handles complex layouts including multi-column text and mixed content
 - Maintains non-text images as references that can be downloaded separately
