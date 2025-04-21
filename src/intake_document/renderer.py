@@ -179,11 +179,20 @@ class MarkdownRenderer:
 
             # Create separator row
             md_table += (
-                "| " + " | ".join(["---"] * len(element.headers)) + " |\n"
+                "| " + " | ".join(["-------------"] * len(element.headers)) + " |\n"
             )
 
             # Create data rows
             for row in element.rows:
+                # Ensure row has the right number of cells
+                if len(row) != len(element.headers):
+                    if len(row) < len(element.headers):
+                        # Pad with empty cells if needed
+                        row = row + [""] * (len(element.headers) - len(row))
+                    else:
+                        # Truncate if too many cells
+                        row = row[:len(element.headers)]
+                
                 # Escape pipe characters in cell content to avoid breaking the table
                 escaped_row = [cell.replace("|", "\\|") for cell in row]
                 md_table += "| " + " | ".join(escaped_row) + " |\n"

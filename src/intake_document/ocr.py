@@ -616,6 +616,15 @@ Document: '{file_info["filename"]}'
                         # This is the separator row in markdown tables
                         continue
 
+                    # Ensure the row has the same number of columns as headers
+                    if len(cells) != len(table_headers):
+                        if len(cells) < len(table_headers):
+                            # Pad with empty cells if needed
+                            cells.extend([""] * (len(table_headers) - len(cells)))
+                        else:
+                            # Truncate if too many cells
+                            cells = cells[:len(table_headers)]
+                    
                     table_rows.append(cells)
                     continue
                 elif in_table:

@@ -49,7 +49,24 @@ def test_render_table():
     )
     result = renderer._render_table_element(element)
 
-    expected = "| Name | Age | Location |\n| --- | --- | --- |\n| Alice | 30 | New York |\n| Bob | 25 | San Francisco |"
+    expected = "| Name | Age | Location |\n| ------------- | ------------- | ------------- |\n| Alice | 30 | New York |\n| Bob | 25 | San Francisco |"
+    assert result == expected
+
+
+def test_render_table_with_uneven_rows():
+    """Test rendering a table with rows that don't match header count."""
+    renderer = MarkdownRenderer()
+    element = TableElement(
+        headers=["Column 1", "Column 2"],
+        rows=[
+            ["Cell 1, Row 1", "Cell 2, Row 1"],
+            ["Cell 1, Row 2"],  # Missing a cell
+            ["Cell 1, Row 3", "Cell 2, Row 3", "Extra Cell"],  # Extra cell
+        ],
+    )
+    result = renderer._render_table_element(element)
+
+    expected = "| Column 1 | Column 2 |\n| ------------- | ------------- |\n| Cell 1, Row 1 | Cell 2, Row 1 |\n| Cell 1, Row 2 |  |\n| Cell 1, Row 3 | Cell 2, Row 3 |"
     assert result == expected
 
 
