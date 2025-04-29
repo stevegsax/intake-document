@@ -1,11 +1,13 @@
 # intake-document
 
-A Python application to convert documents into markdown format using the OCR capabilities provided by [Mistral.ai](https://mistral.ai/).
+A Python application to convert documents into markdown format using
+the OCR capabilities provided by [Mistral.ai](https://mistral.ai/).
 
 ## Features
 
-- Uses Mistral.ai's OCR API to analyze document content
-- Processes document in `batch` mode to save cost
+- Uses Mistral.ai's OCR API to analyze document content and convert
+  into markdown
+- Processes document using Mistral `batch` mode to save cost
 - Uploads documents to Mistral as a separate step
 - Maintains document structure and hierarchy
 - Preserves formatting including:
@@ -13,9 +15,12 @@ A Python application to convert documents into markdown format using the OCR cap
   - Paragraphs
   - Lists (ordered and unordered)
   - Tables with headers and data
-- Returns results in clean markdown format for easy parsing and rendering
-- Handles complex layouts including multi-column text and mixed content
-- Maintains non-text images as references that can be downloaded separately
+- The Mistral API returns results in clean markdown format for easy
+  parsing and rendering
+- Handles complex layouts including multi-column text and mixed
+  content
+- Maintains non-text images as references that can be downloaded
+  separately
 
 ## Installation
 
@@ -32,7 +37,7 @@ git clone https://github.com/yourusername/intake-document.git
 cd intake-document
 
 # Install using pip in development mode
-pip install -e .
+uv pip install -e .
 ```
 
 ### Environment setup
@@ -95,30 +100,6 @@ intake-document --help
 -h, --help                        Show help message and exit
 ```
 
-## Project Structure
-
-```
-intake-document/
-├── src/                          # Source code
-│   └── intake_document/         
-│       ├── __init__.py           # Package initialization
-│       ├── __main__.py           # Entry point
-│       ├── cli.py                # Command-line interface
-│       ├── config.py             # Configuration management
-│       ├── ocr.py                # Mistral OCR integration
-│       ├── processor.py          # Document processing logic
-│       ├── renderer.py           # Markdown rendering
-│       ├── models/               # Data models
-│       │   ├── document.py       # Document structure models
-│       │   └── settings.py       # Application settings models
-│       └── utils/                # Utility modules
-│           ├── logger.py         # Logging configuration
-│           └── xdg.py            # XDG path utilities
-├── tests/                        # Unit tests
-├── docs/                         # Documentation
-├── pyproject.toml                # Project metadata and configuration
-└── README.md                     # This file
-```
 
 ## Dependencies
 
@@ -136,7 +117,7 @@ intake-document/
 
 ```bash
 # Install development dependencies
-pip install pytest
+uv pip install pytest
 
 # Run tests
 pytest
