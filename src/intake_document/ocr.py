@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import List
 
 from mistralai import Mistral
+from mistralai.client import MistralClient
 from PIL import Image
 
 from intake_document.config import config
@@ -153,14 +154,15 @@ class MistralOCR:
             # Step 3: Perform the OCR using the signed URL
             self.logger.debug(f"Calling Mistral OCR API with signed URL")
             
-            ocr_response = self.client.ocr.process(
-                model=self.model,
-                document={
-                    "type": "document_url",
-                    "document_url": signed_url.url,
-                },
-                include_image_base64=True
-            )
+            with Mistral(api_key=self.api_key) as mistral:
+                ocr_response = mistral.ocr.process(
+                    model="mistral-ocr-latest",
+                    document={
+                        "document_url": signed_url.url,
+                        "type": "document_url"
+                    },
+                    include_image_base64=True
+                )
 
             # Parse the OCR response into document elements
             elements = self._parse_ocr_response(ocr_response)
