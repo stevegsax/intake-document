@@ -149,7 +149,7 @@ class MistralOCR:
                 purpose="ocr"
             )
             
-            # Create UploadFileOut object from result and save to JSON file
+            # Get file data from upload response
             file_data = uploaded_file.model_dump()
             
             # Use file size if size_bytes is not available
@@ -158,9 +158,17 @@ class MistralOCR:
                 file_data["size_bytes"] = file_size
                 self.logger.debug(f"Using file size as fallback: {file_size} bytes")
             
+            # Step 2: Get the signed URL of the uploaded file
+            self.logger.debug(f"Getting signed URL for uploaded file: {uploaded_file.id}")
+            signed_url_response = self.client.files.get_signed_url(file_id=uploaded_file.id)
+            
+            # Add signed URL to the upload file info
+            file_data["signed_url"] = signed_url_response.url
+            
+            # Create UploadFileOut object with all data including signed URL
             upload_file_out = UploadFileOut.model_validate(file_data)
             
-            # Save JSON to file
+            # Save JSON to file (only once, after we have all data)
             output_dir = Path("output")
             output_dir.mkdir(exist_ok=True)
             json_file_path = output_dir / f"{file_path.stem}_upload_info.json"
@@ -169,18 +177,6 @@ class MistralOCR:
                 json.dump(upload_file_out.model_dump(), f, indent=2)
             
             self.logger.info(f"Saved file upload info to: {json_file_path}")
-            
-            # Step 2: Get the signed URL of the uploaded file
-            self.logger.debug(f"Getting signed URL for uploaded file: {uploaded_file.id}")
-            signed_url_response = self.client.files.get_signed_url(file_id=uploaded_file.id)
-            
-            # Add signed URL to the upload file info
-            file_data["signed_url"] = signed_url_response.url
-            upload_file_out = UploadFileOut.model_validate(file_data)
-            
-            # Update the JSON file with the signed URL
-            with open(json_file_path, "w") as f:
-                json.dump(upload_file_out.model_dump(), f, indent=2)
             
             # Step 3: Perform the OCR using the signed URL
             self.logger.debug(f"Calling Mistral OCR API with signed URL")

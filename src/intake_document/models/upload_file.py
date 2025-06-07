@@ -1,5 +1,6 @@
 """Models for Mistral API file upload responses."""
 
+import json
 from typing import Optional
 from pydantic import BaseModel, Field
 
@@ -23,3 +24,11 @@ class UploadFileOut(BaseModel):
     source: Source = Field(..., description="The source of the uploaded file")
     num_lines: Optional[int] = Field(None, description="Number of lines in the file, if applicable")
     signed_url: Optional[str] = Field(None, description="The signed URL for accessing the file")
+    
+    def as_json(self) -> str:
+        """Convert the model to a JSON string.
+        
+        Returns:
+            str: JSON string representation of the model
+        """
+        return json.dumps(self.model_dump(), indent=2)
