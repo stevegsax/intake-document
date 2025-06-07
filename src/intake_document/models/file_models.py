@@ -48,3 +48,4 @@ class UploadFileOut(BaseModel):
     sample_type: SampleType = Field(..., description="The type of sample data")
     source: Source = Field(..., description="The source of the uploaded file")
     num_lines: Optional[int] = Field(None, description="Number of lines in the file, if applicable")
+    signed_url: Optional[str] = Field(None, description="The signed URL for accessing the file")
