@@ -118,109 +118,177 @@ class MistralOCR:
         """
         self.logger.debug(f"Processing document with OCR API: {file_path}")
         
-        # Check if we need to convert the file
-        file_to_upload = file_path
         temp_file = None
         
         try:
-            # Convert PNG files to PDF since the OCR API doesn't support PNG
-            if file_path.suffix.lower() in ['.png', '.jpg', '.jpeg']:
-                self.logger.info(f"Converting image file to PDF: {file_path}")
-                # Create a temporary PDF file
-                temp_file = tempfile.NamedTemporaryFile(suffix='.pdf', delete=False)
-                temp_file.close()
-                
-                # Convert image to PDF
-                img = Image.open(file_path)
-                img.save(temp_file.name, 'PDF', resolution=100.0)
-                
-                # Use the temporary file for processing
-                file_to_upload = Path(temp_file.name)
-                self.logger.debug(f"Image converted to PDF: {file_to_upload}")
+            # Convert file if needed (images to PDF)
+            file_to_upload, temp_file = self._prepare_file_for_upload(file_path)
             
-            # Step 1: Upload the file to Mistral server
-            self.logger.debug(f"Uploading file to Mistral server: {file_to_upload}")
+            # Upload file and get signed URL
+            upload_info = self._upload_file_and_get_url(file_to_upload, file_path)
             
-            uploaded_file = self.client.files.upload(
-                file={
-                    "file_name": file_to_upload.name,
-                    "content": open(file_to_upload, "rb"),
-                },
-                purpose="ocr"
-            )
+            # Save upload info to JSON
+            self._save_upload_info(upload_info, file_path)
             
-            # Get file data from upload response
-            file_data = uploaded_file.model_dump()
+            # Perform OCR using the signed URL
+            elements = self._perform_ocr(upload_info.signed_url)
             
-            # Use file size if size_bytes is not available
-            if "size_bytes" not in file_data or file_data["size_bytes"] is None:
-                file_size = file_to_upload.stat().st_size
-                file_data["size_bytes"] = file_size
-                self.logger.debug(f"Using file size as fallback: {file_size} bytes")
-            
-            # Step 2: Get the signed URL of the uploaded file
-            self.logger.debug(f"Getting signed URL for uploaded file: {uploaded_file.id}")
-            signed_url_response = self.client.files.get_signed_url(file_id=uploaded_file.id)
-            
-            # Add signed URL to the upload file info
-            file_data["signed_url"] = signed_url_response.url
-            
-            # Create UploadFileOut object with all data including signed URL
-            upload_file_out = UploadFileOut.model_validate(file_data)
-            
-            # Save JSON to file (only once, after we have all data)
-            output_dir = Path("output")
-            output_dir.mkdir(exist_ok=True)
-            json_file_path = output_dir / f"{file_path.stem}_upload_info.json"
-            
-            with open(json_file_path, "w") as f:
-                json.dump(upload_file_out.model_dump(), f, indent=2)
-            
-            self.logger.info(f"Saved file upload info to: {json_file_path}")
-            
-            # Step 3: Perform the OCR using the signed URL
-            self.logger.debug(f"Calling Mistral OCR API with signed URL")
-            
-            with Mistral(api_key=self.api_key) as mistral:
-                ocr_response = mistral.ocr.process(
-                    model="mistral-ocr-latest",
-                    document={
-                        "document_url": signed_url_response.url,
-                        "type": "document_url"
-                    },
-                    include_image_base64=True
-                )
-
-            # Parse the OCR response into document elements
-            elements = self._parse_ocr_response(ocr_response)
-            self.logger.debug(f"Extracted {len(elements)} document elements")
-
             return elements
-
-        except Exception as e:
-            error_msg = f"Failed to process document with OCR API: {file_path}"
-            self.logger.error(f"{error_msg}: {str(e)}")
             
-            # Determine if it's an API error or another type of error
-            if (
-                "ConnectionError" in str(e)
-                or "Timeout" in str(e)
-                or "Status code" in str(e)
-                or "API" in str(e)
-            ):
-                raise APIError(error_msg, detail=str(e))
-            else:
-                raise OCRError(error_msg, detail=str(e))
+        except Exception as e:
+            self._handle_ocr_error(e, file_path)
         finally:
-            # Clean up temporary file if it exists
-            if temp_file and Path(temp_file.name).exists():
-                try:
-                    Path(temp_file.name).unlink()
-                    self.logger.debug(f"Temporary file deleted: {temp_file.name}")
-                except Exception as e:
-                    self.logger.warning(f"Failed to delete temporary file {temp_file.name}: {str(e)}")
+            self._cleanup_temp_file(temp_file)
 
 
+    def _prepare_file_for_upload(self, file_path: Path) -> tuple[Path, tempfile._TemporaryFileWrapper]:
+        """Prepare file for upload, converting if necessary.
+        
+        Args:
+            file_path: Path to the original file
+            
+        Returns:
+            tuple: (Path to file to upload, Temporary file if created or None)
+        """
+        # Check if we need to convert the file
+        if file_path.suffix.lower() in ['.png', '.jpg', '.jpeg']:
+            self.logger.info(f"Converting image file to PDF: {file_path}")
+            # Create a temporary PDF file
+            temp_file = tempfile.NamedTemporaryFile(suffix='.pdf', delete=False)
+            temp_file.close()
+            
+            # Convert image to PDF
+            img = Image.open(file_path)
+            img.save(temp_file.name, 'PDF', resolution=100.0)
+            
+            # Use the temporary file for processing
+            file_to_upload = Path(temp_file.name)
+            self.logger.debug(f"Image converted to PDF: {file_to_upload}")
+            return file_to_upload, temp_file
+        
+        return file_path, None
+    
+    def _upload_file_and_get_url(self, file_to_upload: Path, original_path: Path) -> UploadFileOut:
+        """Upload file to Mistral API and get signed URL.
+        
+        Args:
+            file_to_upload: Path to the file to upload
+            original_path: Original file path
+            
+        Returns:
+            UploadFileOut: Upload information including signed URL
+        """
+        # Step 1: Upload the file to Mistral server
+        self.logger.debug(f"Uploading file to Mistral server: {file_to_upload}")
+        
+        uploaded_file = self.client.files.upload(
+            file={
+                "file_name": file_to_upload.name,
+                "content": open(file_to_upload, "rb"),
+            },
+            purpose="ocr"
+        )
+        
+        # Get file data from upload response
+        file_data = uploaded_file.model_dump()
+        
+        # Use file size if size_bytes is not available
+        if "size_bytes" not in file_data or file_data["size_bytes"] is None:
+            file_size = file_to_upload.stat().st_size
+            file_data["size_bytes"] = file_size
+            self.logger.debug(f"Using file size as fallback: {file_size} bytes")
+        
+        # Step 2: Get the signed URL of the uploaded file
+        self.logger.debug(f"Getting signed URL for uploaded file: {uploaded_file.id}")
+        signed_url_response = self.client.files.get_signed_url(file_id=uploaded_file.id)
+        
+        # Add signed URL to the upload file info
+        file_data["signed_url"] = signed_url_response.url
+        
+        # Create UploadFileOut object with all data including signed URL
+        return UploadFileOut.model_validate(file_data)
+    
+    def _save_upload_info(self, upload_info: UploadFileOut, original_path: Path) -> None:
+        """Save upload info to JSON file.
+        
+        Args:
+            upload_info: The upload information to save
+            original_path: Original file path
+        """
+        output_dir = Path("output")
+        output_dir.mkdir(exist_ok=True)
+        json_file_path = output_dir / f"{original_path.stem}_upload_info.json"
+        
+        with open(json_file_path, "w") as f:
+            f.write(upload_info.as_json())
+        
+        self.logger.info(f"Saved file upload info to: {json_file_path}")
+    
+    def _perform_ocr(self, signed_url: str) -> List[DocumentElement]:
+        """Perform OCR using the signed URL.
+        
+        Args:
+            signed_url: The signed URL to access the file
+            
+        Returns:
+            List[DocumentElement]: Extracted document elements
+        """
+        self.logger.debug("Calling Mistral OCR API with signed URL")
+        
+        with Mistral(api_key=self.api_key) as mistral:
+            ocr_response = mistral.ocr.process(
+                model="mistral-ocr-latest",
+                document={
+                    "document_url": signed_url,
+                    "type": "document_url"
+                },
+                include_image_base64=True
+            )
+
+        # Parse the OCR response into document elements
+        elements = self._parse_ocr_response(ocr_response)
+        self.logger.debug(f"Extracted {len(elements)} document elements")
+        
+        return elements
+    
+    def _handle_ocr_error(self, exception: Exception, file_path: Path) -> None:
+        """Handle OCR processing errors.
+        
+        Args:
+            exception: The exception that occurred
+            file_path: Path to the original file
+            
+        Raises:
+            APIError: If it's an API-related error
+            OCRError: For other types of errors
+        """
+        error_msg = f"Failed to process document with OCR API: {file_path}"
+        self.logger.error(f"{error_msg}: {str(exception)}")
+        
+        # Determine if it's an API error or another type of error
+        if (
+            "ConnectionError" in str(exception)
+            or "Timeout" in str(exception)
+            or "Status code" in str(exception)
+            or "API" in str(exception)
+        ):
+            raise APIError(error_msg, detail=str(exception))
+        else:
+            raise OCRError(error_msg, detail=str(exception))
+    
+    def _cleanup_temp_file(self, temp_file) -> None:
+        """Clean up temporary file if it exists.
+        
+        Args:
+            temp_file: Temporary file to clean up
+        """
+        if temp_file and Path(temp_file.name).exists():
+            try:
+                Path(temp_file.name).unlink()
+                self.logger.debug(f"Temporary file deleted: {temp_file.name}")
+            except Exception as e:
+                self.logger.warning(f"Failed to delete temporary file {temp_file.name}: {str(e)}")
+    
     def _get_mime_type(self, file_path: Path) -> str:
         """Get MIME type for file extension.
 
