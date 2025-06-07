@@ -14,8 +14,8 @@ from intake_document.models.file_models import (
     FilePurpose,
     SampleType,
     Source,
-    UploadFileOut,
 )
+from intake_document.models.upload_file import UploadFileOut
 from intake_document.models.settings import AppConfig, MistralConfig, Settings
 
 __all__ = [

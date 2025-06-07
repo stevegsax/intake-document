@@ -22,7 +22,7 @@ from intake_document.models.document import (
     TableElement,
     TextElement,
 )
-from intake_document.models.file_models import UploadFileOut
+from intake_document.models.upload_file import UploadFileOut
 from intake_document.utils.exceptions import APIError, OCRError
 
 
