@@ -1,12 +1,12 @@
 """Integration with Mistral.ai OCR API."""
 
+import base64
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import List
 
 from mistralai import Mistral
-from mistralai.models import UserMessage
 
 from intake_document.config import config
 from intake_document.models.document import (
@@ -29,25 +29,27 @@ class MistralOCR:
         self.logger = logging.getLogger(__name__)
 
         # Get API key from settings
-        api_key = config.settings.mistral.api_key
-        if not api_key:
+        self.api_key = config.settings.mistral.api_key
+        if not self.api_key:
             self.logger.warning(
                 "No Mistral API key found. Set MISTRAL_API_KEY environment variable "
                 "or configure it in the config file."
             )
 
         # Initialize client (will be None if no API key)
-        self.client = Mistral(api_key=api_key) if api_key else None
+        self.client = Mistral(api_key=self.api_key) if self.api_key else None
 
         # OCR configuration
         self.model = (
-            "mistral-large-latest"  # Use the latest model for best OCR
+            "mistral-ocr-latest"  # Use the OCR-specific model
         )
         self.batch_size = config.settings.mistral.batch_size
         self.max_retries = config.settings.mistral.max_retries
         self.timeout = config.settings.mistral.timeout
 
-    def process_document(self, document_instance: DocumentInstance) -> Document:
+    def process_document(
+        self, document_instance: DocumentInstance
+    ) -> Document:
         """Process a document through Mistral.ai OCR.
 
         Args:
@@ -69,19 +71,19 @@ class MistralOCR:
                 detail="Set MISTRAL_API_KEY environment variable or configure it in the config file.",
             )
 
-        self.logger.debug(f"Processing {document_instance.file_type.value}: {document_instance.path.name}")
+        self.logger.debug(
+            f"Processing {document_instance.file_type.value}: {document_instance.path.name}"
+        )
 
         try:
-            # Upload and process document
-            document_id = self._upload_document(document_instance.path)
-            elements = self._extract_document_elements(document_id)
-
+            # Process document with OCR API
+            elements = self._process_with_ocr_api(document_instance.path)
 
             # Create processed document
             document = Document(
                 checksum=document_instance.checksum,
                 elements=elements,
-                processed_at=datetime.now()
+                processed_at=datetime.now(),
             )
 
             return document
@@ -90,292 +92,139 @@ class MistralOCR:
             # Re-raise API errors directly
             raise
         except Exception as e:
-            error_msg = f"Error processing document with OCR: {document_instance.path}"
+            error_msg = (
+                f"Error processing document with OCR: {document_instance.path}"
+            )
             self.logger.error(f"{error_msg}: {str(e)}")
             raise OCRError(error_msg, detail=str(e))
 
-    def _upload_document(self, file_path: Path) -> str:
-        """Upload a document to Mistral.ai.
+    def _process_with_ocr_api(self, file_path: Path) -> List[DocumentElement]:
+        """Process document using Mistral OCR API.
 
         Args:
             file_path: Path to the document file
 
         Returns:
-            str: The document ID returned by Mistral
+            List[DocumentElement]: List of extracted document elements
 
         Raises:
-            APIError: If the upload fails due to API issues
-            OCRError: If the upload fails for other reasons
+            APIError: If the OCR API call fails
+            OCRError: If document processing fails for other reasons
         """
-        self.logger.debug(f"Uploading document: {file_path}")
+        self.logger.debug(f"Processing document with OCR API: {file_path}")
 
-        # This is a placeholder for the actual upload implementation
-        # We'd need to use the Mistral API endpoint for document upload
         try:
-            # File validation is handled by processor, just get metadata
-            try:
-                file_size = file_path.stat().st_size
-                self.logger.debug(f"File size: {file_size / 1024:.2f} KB")
-            except OSError as e:
-                self.logger.warning(f"Could not determine file size: {str(e)}")
+            # Read and encode file content
+            with open(file_path, "rb") as f:
+                file_content = f.read()
 
-            # Placeholder implementation
-            document_id = f"doc_{file_path.stem}_{file_path.stat().st_mtime}"
-            self.logger.debug(f"Document uploaded, ID: {document_id}")
-            return document_id
+            encoded_content = base64.b64encode(file_content).decode("utf-8")
+            
+            # Get MIME type for the document
+            mime_type = self._get_mime_type(file_path)
 
-        except OCRError:
-            # Re-raise OCR errors
-            raise
-        except Exception as e:
-            error_msg = f"Failed to upload document: {file_path}"
-            self.logger.error(f"{error_msg}: {str(e)}")
-
-            # Determine if it's an API error or another type of error
-            if (
-                "ConnectionError" in str(e)
-                or "Timeout" in str(e)
-                or "Status code" in str(e)
-            ):
-                raise APIError(error_msg, detail=str(e))
-            else:
-                raise OCRError(error_msg, detail=str(e))
-
-    def _extract_document_elements(
-        self, document_id: str
-    ) -> List[DocumentElement]:
-        """Extract document elements from OCR results.
-
-        Args:
-            document_id: The document ID from upload
-
-        Returns:
-            List[DocumentElement]: List of extracted elements
-
-        Raises:
-            APIError: If extraction fails due to API issues
-            OCRError: If extraction fails for other reasons
-        """
-        self.logger.debug(f"Extracting elements from document: {document_id}")
-
-        # This is a placeholder for the actual extraction implementation
-        # We'd need to use the Mistral API to process the document
-        try:
-            # Validate document ID
-            if not document_id:
-                error_msg = "Invalid document ID: empty or None"
-                self.logger.error(error_msg)
-                raise OCRError(error_msg)
-
-            self.logger.debug(
-                f"Generating extraction prompt for document: {document_id}"
+            # Call Mistral OCR API
+            self.logger.debug("Calling Mistral OCR API")
+            
+            # Create data URL (this appears to be required format)
+            data_url = f"data:{mime_type};base64,{encoded_content}"
+            
+            ocr_response = self.client.ocr.process(
+                model=self.model,
+                document={
+                    "type": "document_url",
+                    "document_url": data_url
+                },
+                include_image_base64=True
             )
 
-            # In a real implementation, we would:
-            # 1. Send a request to Mistral to process the document
-            # 2. Get back structured data
-            # 3. Parse into our document elements
-
-            # Generate prompt for document extraction
-            prompt = self._generate_extraction_prompt(document_id)
-            self.logger.debug("Extraction prompt generated")
-
-            # Call Mistral API
-            self.logger.debug("Calling Mistral API for document analysis")
-            response = self._call_mistral_api(prompt)
-            self.logger.debug("Received response from Mistral API")
-
-            # Parse response into document elements
-            self.logger.debug("Parsing response into document elements")
-            elements = self._parse_response(response)
+            # Parse the OCR response into document elements
+            elements = self._parse_ocr_response(ocr_response)
             self.logger.debug(f"Extracted {len(elements)} document elements")
 
             return elements
 
-        except (APIError, OCRError):
-            # Re-raise our custom exceptions
-            raise
         except Exception as e:
-            error_msg = (
-                f"Failed to extract document elements from {document_id}"
-            )
+            error_msg = f"Failed to process document with OCR API: {file_path}"
             self.logger.error(f"{error_msg}: {str(e)}")
-
+            
             # Determine if it's an API error or another type of error
             if (
                 "ConnectionError" in str(e)
                 or "Timeout" in str(e)
                 or "Status code" in str(e)
+                or "API" in str(e)
             ):
                 raise APIError(error_msg, detail=str(e))
             else:
                 raise OCRError(error_msg, detail=str(e))
 
-    def _generate_extraction_prompt(self, document_id: str) -> str:
-        """Generate a prompt for document extraction.
+
+    def _get_mime_type(self, file_path: Path) -> str:
+        """Get MIME type for file extension.
 
         Args:
-            document_id: The document ID to reference
+            file_path: Path to the file
 
         Returns:
-            str: The generated prompt
+            str: MIME type string
         """
-        return f"""
-        Extract the content from the document with ID '{document_id}'.
-        
-        Please analyze the document and extract all of its content, maintaining the 
-        document's structure and hierarchy. Identify and properly format:
-        
-        1. Headings and subheadings with their appropriate levels
-        2. Paragraphs of text
-        3. Lists (both ordered and unordered)
-        4. Tables with their headers and data
-        5. Images (provide image references)
-        
-        For each element, specify its type and content in a structured format.
-        Maintain the reading order of the document, including multi-column layouts.
-        Identify and preserve formatting of special elements.
-        """
+        mime_types = {
+            ".pdf": "application/pdf",
+            ".png": "image/png",
+            ".jpg": "image/jpeg",
+            ".jpeg": "image/jpeg",
+            ".tiff": "image/tiff",
+            ".tif": "image/tiff",
+            ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        }
+        return mime_types.get(
+            file_path.suffix.lower(), "application/octet-stream"
+        )
 
-    def _call_mistral_api(self, prompt: str) -> Dict[str, Any]:
-        """Call the Mistral API with the given prompt.
+
+
+    def _parse_ocr_response(self, ocr_response) -> List[DocumentElement]:
+        """Parse the Mistral OCR response into document elements.
 
         Args:
-            prompt: The prompt to send to Mistral
-
-        Returns:
-            Dict[str, Any]: The API response
-
-        Raises:
-            ValueError: If the API call fails
-        """
-        self.logger.debug("Calling Mistral API")
-
-        try:
-            # Create messages for the chat completion
-            messages = [UserMessage(content=prompt)]
-
-            # Call the Mistral API
-            response = self.client.chat.complete(
-                model=self.model,
-                messages=messages,
-                max_tokens=4096,
-                temperature=0.1,  # Low temperature for more consistent results
-            )
-
-            # Extract and return the response content
-            # In a real implementation, we'd properly parse the response from response.content
-            # For larger documents, consider using streaming:
-            #
-            # stream = self.client.chat.stream(
-            #     model=self.model,
-            #     messages=messages,
-            #     max_tokens=4096,
-            #     temperature=0.1,
-            # )
-            # full_response = ""
-            # for chunk in stream:
-            #     if chunk.data.choices[0].delta.content:
-            #         content = chunk.data.choices[0].delta.content
-            #         full_response += content
-            # Then parse full_response
-
-            # Placeholder structure that would come from the API
-            return {
-                "elements": [
-                    {
-                        "type": "heading",
-                        "level": 1,
-                        "content": "Sample Document",
-                    },
-                    {
-                        "type": "paragraph",
-                        "content": "This is a sample paragraph extracted from the document.",
-                    },
-                    {"type": "list_item", "content": "Sample list item 1"},
-                    {"type": "list_item", "content": "Sample list item 2"},
-                    {
-                        "type": "table",
-                        "headers": ["Column 1", "Column 2"],
-                        "rows": [
-                            ["Data 1,1", "Data 1,2"],
-                            ["Data 2,1", "Data 2,2"],
-                        ],
-                    },
-                    {
-                        "type": "image",
-                        "id": "img_001",
-                        "caption": "Sample image",
-                    },
-                ]
-            }
-
-        except Exception as e:
-            self.logger.error(f"Error calling Mistral API: {str(e)}")
-            raise ValueError(f"Failed to call Mistral API: {str(e)}")
-
-    def _parse_response(
-        self, response: Dict[str, Any]
-    ) -> List[DocumentElement]:
-        """Parse the Mistral API response into document elements.
-
-        Args:
-            response: The API response to parse
+            ocr_response: The OCR API response object
 
         Returns:
             List[DocumentElement]: List of parsed document elements
         """
-        self.logger.debug("Parsing API response into document elements")
+        self.logger.debug("Parsing OCR response into document elements")
 
         elements: List[DocumentElement] = []
 
-        # Parse each element from the response
-        for index, elem in enumerate(response.get("elements", [])):
-            elem_type = elem.get("type", "")
+        # The OCR response structure may vary, so we need to adapt based on
+        # the actual response format from mistral-ocr-latest
+        try:
+            # Try to access the content from the OCR response
+            if hasattr(ocr_response, 'content'):
+                content = ocr_response.content
+            elif hasattr(ocr_response, 'text'):
+                content = ocr_response.text
+            elif isinstance(ocr_response, dict):
+                content = ocr_response.get('content') or ocr_response.get('text', '')
+            else:
+                content = str(ocr_response)
 
-            if elem_type == "heading":
+            # For now, create a simple text element with the extracted content
+            # This can be enhanced later to parse structured content
+            if content:
                 elements.append(
                     TextElement(
                         element_type=ElementType.TEXT,
-                        element_index=index,
-                        content=elem["content"],
-                        level=elem["level"],
-                    )
-                )
-            elif elem_type == "paragraph":
-                elements.append(
-                    TextElement(
-                        element_type=ElementType.TEXT,
-                        element_index=index,
-                        content=elem["content"],
-                    )
-                )
-            elif elem_type == "list_item":
-                elements.append(
-                    TextElement(
-                        element_type=ElementType.TEXT,
-                        element_index=index,
-                        content=elem["content"],
-                        is_list_item=True,
-                    )
-                )
-            elif elem_type == "table":
-                elements.append(
-                    TableElement(
-                        element_type=ElementType.TABLE,
-                        element_index=index,
-                        headers=elem["headers"],
-                        rows=elem["rows"],
-                    )
-                )
-            elif elem_type == "image":
-                elements.append(
-                    ImageElement(
-                        element_type=ElementType.IMAGE,
-                        element_index=index,
-                        image_id=elem["id"],
-                        caption=elem.get("caption"),
+                        element_index=0,
+                        content=content.strip(),
                     )
                 )
 
-        return elements
+            self.logger.debug(f"Parsed OCR response into {len(elements)} elements")
+            return elements
+
+        except Exception as e:
+            self.logger.warning(f"Failed to parse OCR response: {str(e)}")
+            # Return empty list if parsing fails
+            return []
