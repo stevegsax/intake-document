@@ -1,8 +1,10 @@
 """Tests for the markdown renderer."""
 
+from datetime import datetime
+
 from intake_document.models.document import (
     Document,
-    DocumentType,
+    ElementType,
     ImageElement,
     TableElement,
     TextElement,
@@ -13,7 +15,12 @@ from intake_document.renderer import MarkdownRenderer
 def test_render_heading():
     """Test rendering a heading element."""
     renderer = MarkdownRenderer()
-    element = TextElement(content="Test Heading", level=2)
+    element = TextElement(
+        element_type=ElementType.TEXT,
+        element_index=0,
+        content="Test Heading",
+        level=2
+    )
     result = renderer._render_text_element(element)
 
     assert result == "## Test Heading"
@@ -22,7 +29,11 @@ def test_render_heading():
 def test_render_paragraph():
     """Test rendering a paragraph element."""
     renderer = MarkdownRenderer()
-    element = TextElement(content="Test paragraph content.")
+    element = TextElement(
+        element_type=ElementType.TEXT,
+        element_index=0,
+        content="Test paragraph content."
+    )
     result = renderer._render_text_element(element)
 
     assert result == "Test paragraph content."
@@ -31,7 +42,12 @@ def test_render_paragraph():
 def test_render_list_item():
     """Test rendering a list item element."""
     renderer = MarkdownRenderer()
-    element = TextElement(content="List item", is_list_item=True)
+    element = TextElement(
+        element_type=ElementType.TEXT,
+        element_index=0,
+        content="List item",
+        is_list_item=True
+    )
     result = renderer._render_text_element(element)
 
     assert result == "- List item"
@@ -41,6 +57,8 @@ def test_render_table():
     """Test rendering a table element."""
     renderer = MarkdownRenderer()
     element = TableElement(
+        element_type=ElementType.TABLE,
+        element_index=0,
         headers=["Name", "Age", "Location"],
         rows=[
             ["Alice", "30", "New York"],
@@ -56,7 +74,12 @@ def test_render_table():
 def test_render_image():
     """Test rendering an image element."""
     renderer = MarkdownRenderer()
-    element = ImageElement(image_id="img123", caption="Test Image")
+    element = ImageElement(
+        element_type=ElementType.IMAGE,
+        element_index=0,
+        image_id="img123",
+        caption="Test Image"
+    )
     result = renderer._render_image_element(element)
 
     assert result == "![Test Image](images/img123.png)"
@@ -68,18 +91,44 @@ def test_render_complete_document():
 
     # Create a test document with various elements
     document = Document(
-        path="/test/doc.pdf",
-        file_type=DocumentType.PDF,
+        checksum="abc123def456",
+        processed_at=datetime.now(),
         elements=[
-            TextElement(content="Sample Document", level=1),
-            TextElement(content="This is a sample paragraph."),
-            TextElement(content="First item", is_list_item=True),
-            TextElement(content="Second item", is_list_item=True),
+            TextElement(
+                element_type=ElementType.TEXT,
+                element_index=0,
+                content="Sample Document",
+                level=1
+            ),
+            TextElement(
+                element_type=ElementType.TEXT,
+                element_index=1,
+                content="This is a sample paragraph."
+            ),
+            TextElement(
+                element_type=ElementType.TEXT,
+                element_index=2,
+                content="First item",
+                is_list_item=True
+            ),
+            TextElement(
+                element_type=ElementType.TEXT,
+                element_index=3,
+                content="Second item",
+                is_list_item=True
+            ),
             TableElement(
+                element_type=ElementType.TABLE,
+                element_index=4,
                 headers=["Column 1", "Column 2"],
                 rows=[["Data 1", "Data 2"], ["Data 3", "Data 4"]],
             ),
-            ImageElement(image_id="img001", caption="A sample image"),
+            ImageElement(
+                element_type=ElementType.IMAGE,
+                element_index=5,
+                image_id="img001",
+                caption="A sample image"
+            ),
         ],
     )
 

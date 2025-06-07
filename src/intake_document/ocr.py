@@ -1,6 +1,7 @@
 """Integration with Mistral.ai OCR API."""
 
 import logging
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -11,6 +12,8 @@ from intake_document.config import config
 from intake_document.models.document import (
     Document,
     DocumentElement,
+    DocumentInstance,
+    ElementType,
     ImageElement,
     TableElement,
     TextElement,
@@ -44,11 +47,11 @@ class MistralOCR:
         self.max_retries = config.settings.mistral.max_retries
         self.timeout = config.settings.mistral.timeout
 
-    def process_document(self, document: Document) -> Document:
+    def process_document(self, document_instance: DocumentInstance) -> Document:
         """Process a document through Mistral.ai OCR.
 
         Args:
-            document: The document to process
+            document_instance: The document instance to process
 
         Returns:
             Document: The processed document with extracted elements
@@ -66,13 +69,13 @@ class MistralOCR:
                 detail="Set MISTRAL_API_KEY environment variable or configure it in the config file.",
             )
 
-        self.logger.info(f"Processing document with OCR: {document.path}")
-        self.logger.debug(f"Document file type: {document.file_type}")
+        self.logger.info(f"Processing document with OCR: {document_instance.path}")
+        self.logger.debug(f"Document file type: {document_instance.file_type}")
 
         try:
             # Upload document to Mistral
             self.logger.debug("Uploading document to Mistral.ai")
-            document_id = self._upload_document(document.path)
+            document_id = self._upload_document(document_instance.path)
             self.logger.debug(
                 f"Document uploaded successfully, ID: {document_id}"
             )
@@ -87,14 +90,18 @@ class MistralOCR:
             # Log element types for debugging
             element_types: Dict[str, int] = {}
             for elem in elements:
-                elem_type = elem.element_type
+                elem_type = elem.element_type.value
                 element_types[elem_type] = element_types.get(elem_type, 0) + 1
 
             self.logger.debug(f"Element types: {element_types}")
 
-            # Update document with extracted elements
-            document.elements = elements
-            self.logger.info(f"OCR processing complete for {document.path}")
+            # Create processed document
+            document = Document(
+                checksum=document_instance.checksum,
+                elements=elements,
+                processed_at=datetime.now()
+            )
+            self.logger.info(f"OCR processing complete for {document_instance.path}")
 
             return document
 
@@ -102,7 +109,7 @@ class MistralOCR:
             # Re-raise API errors directly
             raise
         except Exception as e:
-            error_msg = f"Error processing document with OCR: {document.path}"
+            error_msg = f"Error processing document with OCR: {document_instance.path}"
             self.logger.error(f"{error_msg}: {str(e)}")
             raise OCRError(error_msg, detail=str(e))
 
@@ -359,12 +366,14 @@ class MistralOCR:
         elements: List[DocumentElement] = []
 
         # Parse each element from the response
-        for elem in response.get("elements", []):
+        for index, elem in enumerate(response.get("elements", [])):
             elem_type = elem.get("type", "")
 
             if elem_type == "heading":
                 elements.append(
                     TextElement(
+                        element_type=ElementType.TEXT,
+                        element_index=index,
                         content=elem["content"],
                         level=elem["level"],
                     )
@@ -372,12 +381,16 @@ class MistralOCR:
             elif elem_type == "paragraph":
                 elements.append(
                     TextElement(
+                        element_type=ElementType.TEXT,
+                        element_index=index,
                         content=elem["content"],
                     )
                 )
             elif elem_type == "list_item":
                 elements.append(
                     TextElement(
+                        element_type=ElementType.TEXT,
+                        element_index=index,
                         content=elem["content"],
                         is_list_item=True,
                     )
@@ -385,6 +398,8 @@ class MistralOCR:
             elif elem_type == "table":
                 elements.append(
                     TableElement(
+                        element_type=ElementType.TABLE,
+                        element_index=index,
                         headers=elem["headers"],
                         rows=elem["rows"],
                     )
@@ -392,6 +407,8 @@ class MistralOCR:
             elif elem_type == "image":
                 elements.append(
                     ImageElement(
+                        element_type=ElementType.IMAGE,
+                        element_index=index,
                         image_id=elem["id"],
                         caption=elem.get("caption"),
                     )

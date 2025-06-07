@@ -33,7 +33,7 @@ class MarkdownRenderer:
         Raises:
             RenderError: If rendering fails
         """
-        self.logger.info(f"Rendering markdown for document: {document.path}")
+        self.logger.info(f"Rendering markdown for document: {document.checksum[:16]}...")
 
         try:
             # Start with an empty string
@@ -42,7 +42,7 @@ class MarkdownRenderer:
             # Check if we have elements to render
             if not document.elements:
                 self.logger.warning(
-                    f"No elements to render in document: {document.path}"
+                    f"No elements to render in document: {document.checksum[:16]}..."
                 )
 
             # Process each element in the document
@@ -82,14 +82,14 @@ class MarkdownRenderer:
             # Store the markdown in the document
             document.markdown = markdown
             self.logger.info(
-                f"Successfully rendered markdown for document: {document.path}"
+                f"Successfully rendered markdown for document: {document.checksum[:16]}..."
             )
 
             return document
 
         except Exception as e:
             error_msg = (
-                f"Failed to render markdown for document: {document.path}"
+                f"Failed to render markdown for document: {document.checksum[:16]}..."
             )
             self.logger.error(f"{error_msg}: {str(e)}")
             raise RenderError(error_msg, detail=str(e))

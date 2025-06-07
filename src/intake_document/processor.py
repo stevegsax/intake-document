@@ -1,15 +1,17 @@
 """Document processing functionality."""
 
 import logging
+from datetime import datetime
 from pathlib import Path
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 # Local application imports
 from intake_document.config import config
-from intake_document.models.document import Document, DocumentType
+from intake_document.models.document import Document, DocumentInstance, DocumentType
 from intake_document.ocr import MistralOCR
 from intake_document.renderer import MarkdownRenderer
 from intake_document.utils.exceptions import DocumentError, FileTypeError
+from intake_document.utils.file_utils import calculate_sha512, get_file_metadata
 
 
 class DocumentProcessor:
@@ -26,6 +28,9 @@ class DocumentProcessor:
 
         self.ocr = MistralOCR()
         self.renderer = MarkdownRenderer()
+        
+        # Cache for processed documents to avoid reprocessing
+        self._processed_documents: Dict[str, Document] = {}
 
         # Ensure output directory exists
         try:
@@ -108,20 +113,40 @@ class DocumentProcessor:
             raise FileTypeError(error_msg)
 
         try:
-            # Create document model
-            self.logger.debug(f"Creating document model for: {file_path}")
-            document = Document(path=file_path, file_type=doc_type)
-
-            # Process with OCR
-            self.logger.debug(f"Sending to OCR: {file_path}")
-            document = self.ocr.process_document(document)
-            self.logger.info(
-                f"OCR processing complete: {len(document.elements)} elements extracted"
+            # Create document instance
+            self.logger.debug(f"Creating document instance for: {file_path}")
+            checksum = calculate_sha512(file_path)
+            file_size, last_modified = get_file_metadata(file_path)
+            
+            document_instance = DocumentInstance(
+                path=file_path,
+                file_type=doc_type,
+                checksum=checksum,
+                file_size=file_size,
+                last_modified=last_modified
             )
-
-            # Convert to markdown
-            self.logger.debug(f"Converting to markdown: {file_path}")
-            document = self.renderer.render_markdown(document)
+            self.logger.debug(f"Document checksum: {checksum}")
+            
+            # Check if we already have processed this document
+            if checksum in self._processed_documents:
+                self.logger.info(f"Document already processed, using cached result: {checksum[:16]}...")
+                document = self._processed_documents[checksum]
+                document_instance.processed_at = document.processed_at
+            else:
+                # Process with OCR
+                self.logger.debug(f"Sending to OCR: {file_path}")
+                document = self.ocr.process_document(document_instance)
+                self.logger.info(
+                    f"OCR processing complete: {len(document.elements)} elements extracted"
+                )
+                
+                # Convert to markdown
+                self.logger.debug(f"Converting to markdown: {file_path}")
+                document = self.renderer.render_markdown(document)
+                
+                # Cache the processed document
+                self._processed_documents[checksum] = document
+                document_instance.processed_at = document.processed_at
 
             if document.markdown:
                 self.logger.debug(
