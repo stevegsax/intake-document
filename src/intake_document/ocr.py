@@ -114,27 +114,29 @@ class MistralOCR:
         self.logger.debug(f"Processing document with OCR API: {file_path}")
 
         try:
-            # Read file content as binary
-            with open(file_path, "rb") as f:
-                file_content = f.read()
-
-            # Encode binary content to base64 string
-            encoded_content = base64.b64encode(file_content).decode("utf-8")
+            # Step 1: Upload the file to Mistral server
+            self.logger.debug(f"Uploading file to Mistral server: {file_path}")
             
-            # Get MIME type for the document
-            mime_type = self._get_mime_type(file_path)
-
-            # Create data URL with base64 content
-            data_url = f"data:{mime_type};base64,{encoded_content}"
+            uploaded_file = self.client.files.upload(
+                file={
+                    "file_name": file_path.name,
+                    "content": open(file_path, "rb"),
+                },
+                purpose="ocr"
+            )
             
-            # Call Mistral OCR API with the data URL
-            self.logger.debug(f"Calling Mistral OCR API with {mime_type} data URL")
+            # Step 2: Get the signed URL of the uploaded file
+            self.logger.debug(f"Getting signed URL for uploaded file: {uploaded_file.id}")
+            signed_url = self.client.files.get_signed_url(file_id=uploaded_file.id)
+            
+            # Step 3: Perform the OCR using the signed URL
+            self.logger.debug(f"Calling Mistral OCR API with signed URL")
             
             ocr_response = self.client.ocr.process(
                 model=self.model,
                 document={
                     "type": "document_url",
-                    "document_url": data_url
+                    "document_url": signed_url.url,
                 },
                 include_image_base64=True
             )
