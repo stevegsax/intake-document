@@ -69,31 +69,13 @@ class MistralOCR:
                 detail="Set MISTRAL_API_KEY environment variable or configure it in the config file.",
             )
 
-        self.logger.info(f"Processing document with OCR: {document_instance.path}")
-        self.logger.debug(f"Document file type: {document_instance.file_type}")
+        self.logger.debug(f"Processing {document_instance.file_type.value}: {document_instance.path.name}")
 
         try:
-            # Upload document to Mistral
-            self.logger.debug("Uploading document to Mistral.ai")
+            # Upload and process document
             document_id = self._upload_document(document_instance.path)
-            self.logger.debug(
-                f"Document uploaded successfully, ID: {document_id}"
-            )
-
-            # Process with OCR
-            self.logger.debug("Extracting document elements from OCR results")
             elements = self._extract_document_elements(document_id)
-            self.logger.debug(
-                f"Extracted {len(elements)} elements from document"
-            )
 
-            # Log element types for debugging
-            element_types: Dict[str, int] = {}
-            for elem in elements:
-                elem_type = elem.element_type.value
-                element_types[elem_type] = element_types.get(elem_type, 0) + 1
-
-            self.logger.debug(f"Element types: {element_types}")
 
             # Create processed document
             document = Document(
@@ -101,7 +83,6 @@ class MistralOCR:
                 elements=elements,
                 processed_at=datetime.now()
             )
-            self.logger.info(f"OCR processing complete for {document_instance.path}")
 
             return document
 
@@ -131,33 +112,16 @@ class MistralOCR:
         # This is a placeholder for the actual upload implementation
         # We'd need to use the Mistral API endpoint for document upload
         try:
-            # Check file exists and is readable
-            if not file_path.exists():
-                raise OCRError(f"File not found: {file_path}")
-
-            if not file_path.is_file():
-                raise OCRError(f"Not a file: {file_path}")
-
-            # Check file size
+            # File validation is handled by processor, just get metadata
             try:
                 file_size = file_path.stat().st_size
                 self.logger.debug(f"File size: {file_size / 1024:.2f} KB")
             except OSError as e:
                 self.logger.warning(f"Could not determine file size: {str(e)}")
 
-            # In a real implementation, we would:
-            # 1. Read the file
-            # 2. Send it to Mistral's upload endpoint
-            # 3. Get back a document ID
-
-            # For now, we'll simulate this with a placeholder
-            # In a real implementation, replace this with actual API call
-            # document_id = self.client.upload_document(file_path)
-
-            # Placeholder
+            # Placeholder implementation
             document_id = f"doc_{file_path.stem}_{file_path.stat().st_mtime}"
             self.logger.debug(f"Document uploaded, ID: {document_id}")
-
             return document_id
 
         except OCRError:

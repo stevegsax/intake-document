@@ -167,8 +167,6 @@ def main(
                 raise typer.Exit(1)
         else:
             if not show_config:
-                # If no input and not showing config, show help
-                logger.debug("No action specified, showing help message")
                 console.print(
                     "No input specified. Use --help to see available options."
                 )

@@ -14,7 +14,7 @@ from xdg_base_dirs import (
     xdg_state_home,
 )
 
-from intake_document.utils.exceptions import XDGError
+from intake_document.utils.exceptions import FileError as XDGError
 
 
 class XDGPaths:

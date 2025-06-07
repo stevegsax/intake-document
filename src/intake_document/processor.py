@@ -11,7 +11,7 @@ from intake_document.models.document import Document, DocumentInstance, Document
 from intake_document.ocr import MistralOCR
 from intake_document.renderer import MarkdownRenderer
 from intake_document.utils.exceptions import DocumentError, FileTypeError
-from intake_document.utils.file_utils import calculate_sha512, get_file_metadata
+from intake_document.utils.file_utils import calculate_sha512, get_file_metadata, validate_file
 
 
 class DocumentProcessor:
@@ -48,27 +48,6 @@ class DocumentProcessor:
             f"DocumentProcessor initialized with output directory: {output_dir}"
         )
 
-    def _get_document_type(self, file_path: Path) -> Optional[DocumentType]:
-        """Determine the document type from a file path.
-
-        Args:
-            file_path: Path to the document file
-
-        Returns:
-            Optional[DocumentType]: The document type or None if unsupported
-        """
-        # Get the file extension (lowercase)
-        ext = file_path.suffix.lower().lstrip(".")
-        self.logger.debug(f"Determining document type for extension: {ext}")
-
-        # Try to map to a DocumentType
-        try:
-            doc_type = DocumentType(ext)
-            self.logger.debug(f"Mapped to document type: {doc_type}")
-            return doc_type
-        except ValueError:
-            self.logger.warning(f"Unsupported file type: {ext}")
-            return None
 
     def process_file(self, file_path: Path) -> Path:
         """Process a single document file.
@@ -86,31 +65,13 @@ class DocumentProcessor:
         """
         self.logger.info(f"Processing file: {file_path}")
 
-        # Check if file exists
-        if not file_path.exists():
-            error_msg = f"File not found: {file_path}"
-            self.logger.error(error_msg)
-            raise FileNotFoundError(error_msg)
-
-        # Check file size
+        # Validate file and get document type
         try:
-            file_size = file_path.stat().st_size
-            self.logger.debug(f"File size: {file_size / 1024:.2f} KB")
-
-            # Warn if file is very large (e.g., > 10MB)
-            if file_size > 10 * 1024 * 1024:
-                self.logger.warning(
-                    f"Large file detected ({file_size / 1024 / 1024:.2f} MB), processing may take longer"
-                )
-        except OSError as e:
-            self.logger.warning(f"Could not determine file size: {str(e)}")
-
-        # Get document type
-        doc_type = self._get_document_type(file_path)
-        if doc_type is None:
-            error_msg = f"Unsupported file type: {file_path.suffix}"
-            self.logger.error(error_msg)
-            raise FileTypeError(error_msg)
+            doc_type = validate_file(file_path)
+            self.logger.debug(f"Validated file: {file_path}, type: {doc_type}")
+        except (FileError, FileTypeError) as e:
+            self.logger.error(f"File validation failed: {e.message}")
+            raise
 
         try:
             # Create document instance
@@ -125,42 +86,26 @@ class DocumentProcessor:
                 file_size=file_size,
                 last_modified=last_modified
             )
-            self.logger.debug(f"Document checksum: {checksum}")
             
             # Check if we already have processed this document
             if checksum in self._processed_documents:
-                self.logger.info(f"Document already processed, using cached result: {checksum[:16]}...")
+                self.logger.info(f"Using cached result for {file_path.name}")
                 document = self._processed_documents[checksum]
                 document_instance.processed_at = document.processed_at
             else:
-                # Process with OCR
-                self.logger.debug(f"Sending to OCR: {file_path}")
+                # Process with OCR and convert to markdown
                 document = self.ocr.process_document(document_instance)
-                self.logger.info(
-                    f"OCR processing complete: {len(document.elements)} elements extracted"
-                )
-                
-                # Convert to markdown
-                self.logger.debug(f"Converting to markdown: {file_path}")
                 document = self.renderer.render_markdown(document)
                 
                 # Cache the processed document
                 self._processed_documents[checksum] = document
                 document_instance.processed_at = document.processed_at
-
-            if document.markdown:
-                self.logger.debug(
-                    f"Markdown generated: {len(document.markdown)} characters"
-                )
-            else:
-                self.logger.warning("No markdown content generated")
+                
+                self.logger.info(f"Processed {file_path.name}: {len(document.elements)} elements, {len(document.markdown or '')} chars markdown")
 
             # Save to output file
             output_path = self._get_output_path(file_path)
             self._save_markdown(document, output_path)
-            self.logger.info(
-                f"Document processing complete: {file_path} → {output_path}"
-            )
 
             return output_path
 
@@ -208,7 +153,9 @@ class DocumentProcessor:
                 if file_path.is_file():
                     try:
                         # Check if file type is supported
-                        if self._get_document_type(file_path) is None:
+                        try:
+                            validate_file(file_path)
+                        except (FileError, FileTypeError):
                             self.logger.debug(
                                 f"Skipping unsupported file: {file_path}"
                             )

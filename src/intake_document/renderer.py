@@ -33,7 +33,6 @@ class MarkdownRenderer:
         Raises:
             RenderError: If rendering fails
         """
-        self.logger.info(f"Rendering markdown for document: {document.checksum[:16]}...")
 
         try:
             # Start with an empty string
@@ -41,9 +40,7 @@ class MarkdownRenderer:
 
             # Check if we have elements to render
             if not document.elements:
-                self.logger.warning(
-                    f"No elements to render in document: {document.checksum[:16]}..."
-                )
+                self.logger.warning("No elements to render in document")
 
             # Process each element in the document
             for i, element in enumerate(document.elements):
@@ -81,9 +78,6 @@ class MarkdownRenderer:
 
             # Store the markdown in the document
             document.markdown = markdown
-            self.logger.info(
-                f"Successfully rendered markdown for document: {document.checksum[:16]}..."
-            )
 
             return document
 
