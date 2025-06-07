@@ -159,8 +159,7 @@ class MistralOCR:
                     "type": "document_url",
                     "document_url": signed_url.url,
                 },
-                include_image_base64=True,
-                document_annotation_format="json_object"
+                include_image_base64=True
             )
 
             # Parse the OCR response into document elements
