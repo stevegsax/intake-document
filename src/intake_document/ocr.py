@@ -1,6 +1,7 @@
 """Integration with Mistral.ai OCR API."""
 
 import base64
+import json
 import logging
 import tempfile
 from datetime import datetime
@@ -21,6 +22,7 @@ from intake_document.models.document import (
     TableElement,
     TextElement,
 )
+from intake_document.models.file_models import UploadFileOut
 from intake_document.utils.exceptions import APIError, OCRError
 
 
@@ -146,6 +148,19 @@ class MistralOCR:
                 },
                 purpose="ocr"
             )
+            
+            # Create UploadFileOut object from result and save to JSON file
+            upload_file_out = UploadFileOut.model_validate(uploaded_file.model_dump())
+            
+            # Save JSON to file
+            output_dir = Path("output")
+            output_dir.mkdir(exist_ok=True)
+            json_file_path = output_dir / f"{file_path.stem}_upload_info.json"
+            
+            with open(json_file_path, "w") as f:
+                json.dump(upload_file_out.model_dump(), f, indent=2)
+            
+            self.logger.info(f"Saved file upload info to: {json_file_path}")
             
             # Step 2: Get the signed URL of the uploaded file
             self.logger.debug(f"Getting signed URL for uploaded file: {uploaded_file.id}")
