@@ -150,7 +150,13 @@ class MistralOCR:
             )
             
             # Create UploadFileOut object from result and save to JSON file
-            upload_file_out = UploadFileOut.model_validate(uploaded_file.model_dump())
+            file_data = uploaded_file.model_dump()
+            
+            # Fix missing or renamed fields
+            if "bytes" in file_data and "size_bytes" not in file_data:
+                file_data["size_bytes"] = file_data["bytes"]
+                
+            upload_file_out = UploadFileOut.model_validate(file_data)
             
             # Save JSON to file
             output_dir = Path("output")

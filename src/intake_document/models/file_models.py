@@ -20,6 +20,7 @@ class SampleType(str, Enum):
     IMAGE = "image"
     PDF = "pdf"
     OTHER = "other"
+    OCR_INPUT = "ocr_input"
 
 
 class Source(str, Enum):
@@ -28,6 +29,7 @@ class Source(str, Enum):
     USER = "user"
     API = "api"
     SYSTEM = "system"
+    UPLOAD = "upload"
 
 
 class UploadFileOut(BaseModel):
