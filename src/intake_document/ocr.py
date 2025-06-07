@@ -2,11 +2,13 @@
 
 import base64
 import logging
+import tempfile
 from datetime import datetime
 from pathlib import Path
 from typing import List
 
 from mistralai import Mistral
+from PIL import Image
 
 from intake_document.config import config
 from intake_document.models.document import (
@@ -112,15 +114,34 @@ class MistralOCR:
             OCRError: If document processing fails for other reasons
         """
         self.logger.debug(f"Processing document with OCR API: {file_path}")
-
+        
+        # Check if we need to convert the file
+        file_to_upload = file_path
+        temp_file = None
+        
         try:
+            # Convert PNG files to PDF since the OCR API doesn't support PNG
+            if file_path.suffix.lower() in ['.png', '.jpg', '.jpeg']:
+                self.logger.info(f"Converting image file to PDF: {file_path}")
+                # Create a temporary PDF file
+                temp_file = tempfile.NamedTemporaryFile(suffix='.pdf', delete=False)
+                temp_file.close()
+                
+                # Convert image to PDF
+                img = Image.open(file_path)
+                img.save(temp_file.name, 'PDF', resolution=100.0)
+                
+                # Use the temporary file for processing
+                file_to_upload = Path(temp_file.name)
+                self.logger.debug(f"Image converted to PDF: {file_to_upload}")
+            
             # Step 1: Upload the file to Mistral server
-            self.logger.debug(f"Uploading file to Mistral server: {file_path}")
+            self.logger.debug(f"Uploading file to Mistral server: {file_to_upload}")
             
             uploaded_file = self.client.files.upload(
                 file={
-                    "file_name": file_path.name,
-                    "content": open(file_path, "rb"),
+                    "file_name": file_to_upload.name,
+                    "content": open(file_to_upload, "rb"),
                 },
                 purpose="ocr"
             )
@@ -161,6 +182,14 @@ class MistralOCR:
                 raise APIError(error_msg, detail=str(e))
             else:
                 raise OCRError(error_msg, detail=str(e))
+        finally:
+            # Clean up temporary file if it exists
+            if temp_file and Path(temp_file.name).exists():
+                try:
+                    Path(temp_file.name).unlink()
+                    self.logger.debug(f"Temporary file deleted: {temp_file.name}")
+                except Exception as e:
+                    self.logger.warning(f"Failed to delete temporary file {temp_file.name}: {str(e)}")
 
 
     def _get_mime_type(self, file_path: Path) -> str:
