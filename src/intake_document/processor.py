@@ -1,17 +1,23 @@
 """Document processing functionality."""
 
 import logging
-from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 # Local application imports
 from intake_document.config import config
-from intake_document.models.document import Document, DocumentInstance, DocumentType
+from intake_document.models.document import (
+    Document,
+    DocumentInstance,
+)
 from intake_document.ocr import MistralOCR
 from intake_document.renderer import MarkdownRenderer
 from intake_document.utils.exceptions import DocumentError, FileTypeError
-from intake_document.utils.file_utils import calculate_sha512, get_file_metadata, validate_file
+from intake_document.utils.file_utils import (
+    calculate_sha512,
+    get_file_metadata,
+    validate_file,
+)
 
 
 class DocumentProcessor:
@@ -28,7 +34,7 @@ class DocumentProcessor:
 
         self.ocr = MistralOCR()
         self.renderer = MarkdownRenderer()
-        
+
         # Cache for processed documents to avoid reprocessing
         self._processed_documents: Dict[str, Document] = {}
 
@@ -47,7 +53,6 @@ class DocumentProcessor:
         self.logger.info(
             f"DocumentProcessor initialized with output directory: {output_dir}"
         )
-
 
     def process_file(self, file_path: Path) -> Path:
         """Process a single document file.
@@ -78,15 +83,15 @@ class DocumentProcessor:
             self.logger.debug(f"Creating document instance for: {file_path}")
             checksum = calculate_sha512(file_path)
             file_size, last_modified = get_file_metadata(file_path)
-            
+
             document_instance = DocumentInstance(
                 path=file_path,
                 file_type=doc_type,
                 checksum=checksum,
                 file_size=file_size,
-                last_modified=last_modified
+                last_modified=last_modified,
             )
-            
+
             # Check if we already have processed this document
             if checksum in self._processed_documents:
                 self.logger.info(f"Using cached result for {file_path.name}")
@@ -96,12 +101,14 @@ class DocumentProcessor:
                 # Process with OCR and convert to markdown
                 document = self.ocr.process_document(document_instance)
                 document = self.renderer.render_markdown(document)
-                
+
                 # Cache the processed document
                 self._processed_documents[checksum] = document
                 document_instance.processed_at = document.processed_at
-                
-                self.logger.info(f"Processed {file_path.name}: {len(document.elements)} elements, {len(document.markdown or '')} chars markdown")
+
+                self.logger.info(
+                    f"Processed {file_path.name}: {len(document.elements)} elements, {len(document.markdown or '')} chars markdown"
+                )
 
             # Save to output file
             output_path = self._get_output_path(file_path)

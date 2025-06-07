@@ -47,7 +47,7 @@ class Config:
         config_path_env = os.environ.get("INTAKE_DOCUMENT_CONFIG")
         if config_path_env:
             return Path(config_path_env)
-        
+
         # Default to user home directory
         return Path.home() / f".{self._config_file}"
 
@@ -60,7 +60,9 @@ class Config:
         Raises:
             ConfigError: If settings cannot be loaded or validated
         """
-        self.logger.debug("Loading settings from config file and environment variables")
+        self.logger.debug(
+            "Loading settings from config file and environment variables"
+        )
 
         # Start with empty config data
         config_data: Dict[str, Dict[str, Any]] = {
@@ -82,13 +84,15 @@ class Config:
                         config_data[section] = {}
                     for key, value in parser.items(section):
                         config_data[section][key] = value
-                        
+
             except Exception as e:
                 error_msg = f"Error reading config file: {config_path}"
                 self.logger.error(f"{error_msg}: {str(e)}")
                 raise ConfigError(error_msg, detail=str(e))
         else:
-            self.logger.debug("No config file found, using environment variables and defaults")
+            self.logger.debug(
+                "No config file found, using environment variables and defaults"
+            )
 
         # Override with environment variables (higher priority)
         env_vars = {
@@ -96,7 +100,7 @@ class Config:
             "INTAKE_DOCUMENT_OUTPUT_DIR": ("app", "output_dir"),
             "INTAKE_DOCUMENT_LOG_LEVEL": ("app", "log_level"),
         }
-        
+
         for env_var, (section, key) in env_vars.items():
             value = os.environ.get(env_var)
             if value:

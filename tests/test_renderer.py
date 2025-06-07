@@ -19,7 +19,7 @@ def test_render_heading():
         element_type=ElementType.TEXT,
         element_index=0,
         content="Test Heading",
-        level=2
+        level=2,
     )
     result = renderer._render_text_element(element)
 
@@ -32,7 +32,7 @@ def test_render_paragraph():
     element = TextElement(
         element_type=ElementType.TEXT,
         element_index=0,
-        content="Test paragraph content."
+        content="Test paragraph content.",
     )
     result = renderer._render_text_element(element)
 
@@ -46,7 +46,7 @@ def test_render_list_item():
         element_type=ElementType.TEXT,
         element_index=0,
         content="List item",
-        is_list_item=True
+        is_list_item=True,
     )
     result = renderer._render_text_element(element)
 
@@ -78,7 +78,7 @@ def test_render_image():
         element_type=ElementType.IMAGE,
         element_index=0,
         image_id="img123",
-        caption="Test Image"
+        caption="Test Image",
     )
     result = renderer._render_image_element(element)
 
@@ -98,24 +98,24 @@ def test_render_complete_document():
                 element_type=ElementType.TEXT,
                 element_index=0,
                 content="Sample Document",
-                level=1
+                level=1,
             ),
             TextElement(
                 element_type=ElementType.TEXT,
                 element_index=1,
-                content="This is a sample paragraph."
+                content="This is a sample paragraph.",
             ),
             TextElement(
                 element_type=ElementType.TEXT,
                 element_index=2,
                 content="First item",
-                is_list_item=True
+                is_list_item=True,
             ),
             TextElement(
                 element_type=ElementType.TEXT,
                 element_index=3,
                 content="Second item",
-                is_list_item=True
+                is_list_item=True,
             ),
             TableElement(
                 element_type=ElementType.TABLE,
@@ -127,7 +127,7 @@ def test_render_complete_document():
                 element_type=ElementType.IMAGE,
                 element_index=5,
                 image_id="img001",
-                caption="A sample image"
+                caption="A sample image",
             ),
         ],
     )

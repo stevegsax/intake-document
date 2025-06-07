@@ -140,10 +140,11 @@ wheels = [
 
 [[package]]
 name = "intake-document"
-version = "0.2.0"
+version = "0.3.0"
 source = { editable = "." }
 dependencies = [
     { name = "config" },
+    { name = "httpx" },
     { name = "mistralai" },
     { name = "pydantic" },
     { name = "rich" },
@@ -160,6 +161,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "config", specifier = ">=0.5.0" },
+    { name = "httpx", specifier = ">=0.28.1" },
     { name = "mistralai", specifier = ">=0.5.0" },
     { name = "pydantic" },
     { name = "rich" },

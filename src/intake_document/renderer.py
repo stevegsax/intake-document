@@ -82,9 +82,7 @@ class MarkdownRenderer:
             return document
 
         except Exception as e:
-            error_msg = (
-                f"Failed to render markdown for document: {document.checksum[:16]}..."
-            )
+            error_msg = f"Failed to render markdown for document: {document.checksum[:16]}..."
             self.logger.error(f"{error_msg}: {str(e)}")
             raise RenderError(error_msg, detail=str(e))
 

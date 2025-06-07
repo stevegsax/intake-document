@@ -12,6 +12,7 @@ dependencies = [
     "config>=0.5.0",
     "xdg-base-dirs",
     "typer",
+    "httpx>=0.28.1",
 ]
 
 [project.scripts]

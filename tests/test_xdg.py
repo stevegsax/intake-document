@@ -11,7 +11,9 @@ from intake_document.utils.xdg import XDGPaths
 @patch("intake_document.utils.xdg.xdg_cache_home")
 @patch("intake_document.utils.xdg.xdg_state_home")
 @patch("intake_document.utils.xdg.XDGPaths._get_runtime_dir")
-def test_xdg_paths(mock_runtime, mock_state, mock_cache, mock_data, mock_config):
+def test_xdg_paths(
+    mock_runtime, mock_state, mock_cache, mock_data, mock_config
+):
     """Test that XDGPaths correctly uses the XDG base directories."""
     # Set up mock return values
     mock_config.return_value = Path("/home/user/.config")

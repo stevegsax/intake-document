@@ -29,7 +29,9 @@ def calculate_sha512(file_path: Path) -> str:
                 sha512_hash.update(chunk)
         return sha512_hash.hexdigest()
     except OSError as e:
-        raise FileError(f"Failed to calculate checksum for {file_path}", detail=str(e))
+        raise FileError(
+            f"Failed to calculate checksum for {file_path}", detail=str(e)
+        )
 
 
 def get_file_metadata(file_path: Path) -> Tuple[int, datetime]:
@@ -50,7 +52,9 @@ def get_file_metadata(file_path: Path) -> Tuple[int, datetime]:
         last_modified = datetime.fromtimestamp(stat.st_mtime)
         return file_size, last_modified
     except OSError as e:
-        raise FileError(f"Failed to get metadata for {file_path}", detail=str(e))
+        raise FileError(
+            f"Failed to get metadata for {file_path}", detail=str(e)
+        )
 
 
 def validate_file(file_path: Path) -> DocumentType:
@@ -99,18 +103,18 @@ def get_document_type(file_path: Path) -> DocumentType:
         FileTypeError: If file type is not supported
     """
     SUPPORTED_TYPES = {
-        '.pdf': DocumentType.PDF,
-        '.png': DocumentType.PNG,
-        '.jpg': DocumentType.JPG,
-        '.jpeg': DocumentType.JPEG,
-        '.tiff': DocumentType.TIFF,
-        '.docx': DocumentType.DOCX,
+        ".pdf": DocumentType.PDF,
+        ".png": DocumentType.PNG,
+        ".jpg": DocumentType.JPG,
+        ".jpeg": DocumentType.JPEG,
+        ".tiff": DocumentType.TIFF,
+        ".docx": DocumentType.DOCX,
     }
-    
+
     ext = file_path.suffix.lower()
     doc_type = SUPPORTED_TYPES.get(ext)
-    
+
     if doc_type is None:
         raise FileTypeError(f"Unsupported file type: {ext}")
-    
+
     return doc_type
