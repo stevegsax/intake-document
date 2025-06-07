@@ -153,9 +153,21 @@ class MistralOCR:
             file_data = uploaded_file.model_dump()
             
             # Fix missing or renamed fields
-            if "bytes" in file_data and "size_bytes" not in file_data:
-                file_data["size_bytes"] = file_data["bytes"]
-                
+            if "bytes" in file_data:
+                # If bytes exists and is not None, use it for size_bytes
+                if file_data["bytes"] is not None:
+                    file_data["size_bytes"] = file_data["bytes"]
+                # Otherwise, use file_size from original file as fallback
+                elif "size_bytes" not in file_data or file_data["size_bytes"] is None:
+                    file_size = file_to_upload.stat().st_size
+                    file_data["size_bytes"] = file_size
+                    self.logger.debug(f"Using file size as fallback: {file_size} bytes")
+            
+            # If size_bytes is still None, set it to 0 to prevent validation errors
+            if "size_bytes" not in file_data or file_data["size_bytes"] is None:
+                file_data["size_bytes"] = 0
+                self.logger.warning("Unable to determine file size, using 0 as placeholder")
+            
             upload_file_out = UploadFileOut.model_validate(file_data)
             
             # Save JSON to file
